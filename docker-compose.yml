@@ -1,0 +1,17 @@
+version: '3.4'
+
+services:
+  dtf_message_bot:
+    image: ${DOCKER_REGISTRY-}dtfmessagebot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DTFMB_PersistentState__Directory=/state
+      - DTFMB_Logging__Console__DisableColors=true
+    volumes:
+      - state-volume:/state
+
+volumes:
+  state-volume:

@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "DTF_message_bot": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "environmentVariables": {
+        "DTFMB_PersistentState__Directory": "./state"
+      }
+    }
+  }
+}
