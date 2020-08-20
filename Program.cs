@@ -1,42 +1,65 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
+using Microsoft.Extensions.Hosting;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DTF_message_bot
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
-            ConsoleKeyInfo key = new ConsoleKeyInfo();
-            Console.WriteLine("Бот для мессенджера Очобы\nСделано долбоёбом Neko Natum\n");
-            //Инициализируем все классы перед работой
+            await Host.CreateDefaultBuilder()
+                .ConfigureAppConfiguration(configuration =>
+                {
+                    configuration.AddJsonFile("appsettings.json");
+                    configuration.AddEnvironmentVariables("DTFMB__");
+                    configuration.AddCommandLine(args);
+                })
+                .ConfigureLogging((ctx, logging) =>
+                {
+                    logging.AddConsole();
+                    logging.AddConfiguration(ctx.Configuration.GetSection("Logging"));
+                })
+                .ConfigureServices((ctx, services) =>
+                {
+                    services.AddOptions();
+                    services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
+                    services.AddSingleton<DtfMessageBotService>();
+                    services.AddHostedService<DtfMessageBotService>();
+                })
+                .RunConsoleAsync();
+        }
+    }
+
+    internal class DtfMessageBotService : ContinuousHostedService
+    {
+        private readonly ILogger<DtfMessageBotService> _logger;
+
+        public DtfMessageBotService(
+            ILogger<DtfMessageBotService> logger,
+            IHostApplicationLifetime host) : base(host)
+        {
+            _logger = logger;
+        }
+
+        protected override async Task RunServiceAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Бот для мессенджера Очобы");
+            _logger.LogInformation("Сделано долбоёбом Neko Natum");
+            _logger.LogInformation("Поiхалi");
             BotConfig config = new BotConfig();
             MessageData data = new MessageData();
             Network worker = new Network();
             List<User> activeUsers = new List<User>();
-            //
-
             config.readConfig();
             worker.setupNetworkToken(config.site, config.version, config.token);
-            Console.WriteLine("Для начала работы нажмите любую кнопку. Для завершения работы нажмите Ctrl+Z");
-            //var key = Console.ReadKey();
-            Console.WriteLine("Поiхалi");
-
-            var cts = new CancellationTokenSource();
-            var consoleReaderThread = new Thread(() =>
-            {
-                while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
-                cts.Cancel();
-            });
-            consoleReaderThread.Start();
-
-            // есть еще такая фича, но на моем опыте не работала, плюс только Ctrl+C/Ctrl+Break в теории
-            Console.CancelKeyPress += (_, __) => cts.Cancel();
 
             do
             {
@@ -67,12 +90,12 @@ namespace DTF_message_bot
                                         tags = null
                                     });
                                     activeUsers.Last().SaveUserJson();
-                                    Console.WriteLine("Создан новый пользователь с id = {0}", chan.id);
+                                    _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
                                 }
                                 else
                                 {
                                     activeUsers.Add(JsonSerializer.Deserialize<User>(File.ReadAllText("users/" + chan.id + ".json")));
-                                    Console.WriteLine("Подключился пользователь с id = {0}", chan.id);
+                                    _logger.LogInformation("Подключился пользователь с id = {0}", chan.id);
                                 }
                                 currentActive = activeUsers.Count - 1;
                             }
@@ -81,34 +104,28 @@ namespace DTF_message_bot
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            Console.WriteLine(chan.lastMessage.text);
-                            Console.WriteLine(activeUsers.ElementAt(currentActive).lastMessage);
+                            _logger.LogInformation(chan.lastMessage.text);
+                            _logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
                             activeUsers.ElementAt(currentActive).Actions(worker);
                         }
                     }
                 }
                 else if (worker.LastStatus == 0)
                 {
-                    //Console.WriteLine("Nothing to report!");
-                    Thread.Sleep(1000);
+                    await Task.Delay(1000);
                 }
                 else if (worker.LastStatus == -1)
                 {
-                    Console.WriteLine("Произошла ошибка сети, бот будет остановлен");
-                    Thread.Sleep(1000);
+                    _logger.LogError("Произошла ошибка сети, бот будет остановлен");
                 }
             }
-            while (!cts.IsCancellationRequested && worker.LastStatus >= 0);
+            while (!cancellationToken.IsCancellationRequested && worker.LastStatus >= 0);
 
             foreach (User user in activeUsers)
             {
                 user.SaveUserJson();
             }
-
-            Console.WriteLine("Shutdown!");
         }
-
-        
     }
 }
 
