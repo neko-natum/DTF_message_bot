@@ -23,9 +23,7 @@ namespace DTF_message_bot
 
             config.readConfig();
             worker.setupNetworkToken(config.site, config.version, config.token);
-            Console.WriteLine("Для начала работы нажмите любую кнопку. Для завершения работы нажмите Ctrl+Z");
-            //var key = Console.ReadKey();
-            Console.WriteLine("Поiхалi");
+            Console.WriteLine("Для завершения работы нажмите Ctrl+Z");
 
             var cts = new CancellationTokenSource();
             var consoleReaderThread = new Thread(() =>
@@ -81,8 +79,8 @@ namespace DTF_message_bot
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            Console.WriteLine(chan.lastMessage.text);
-                            Console.WriteLine(activeUsers.ElementAt(currentActive).lastMessage);
+                            //Console.WriteLine(chan.lastMessage.text);
+                            //Console.WriteLine(activeUsers.ElementAt(currentActive).lastMessage);
                             activeUsers.ElementAt(currentActive).Actions(worker);
                         }
                     }
