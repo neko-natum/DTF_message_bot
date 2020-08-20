@@ -30,7 +30,6 @@ namespace DTF_message_bot
                 version = Console.ReadLine().ToString();
                 Console.Write("Введите токен авторизации: ");
                 token = Console.ReadLine().ToString();
-                //string temp = "{ \"site\":\"" + site+ "\",\"version\":\"" + version+ "\",\"token\":\"" + token+ "\"}";//да долбоёб. да стыдно
                 File.WriteAllText("config.json", JsonSerializer.Serialize<BotConfig>(this));
             }
             Console.WriteLine("Настройки доступа приняты");

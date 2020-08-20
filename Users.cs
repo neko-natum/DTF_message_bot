@@ -26,21 +26,74 @@ namespace DTF_message_bot
         {
             File.WriteAllText("users/" + id + ".json", JsonSerializer.Serialize<User>(this));
         }
+        public void UpdateUser(Channels chan)
+        {
+            id = chan.id;
+            username = chan.lastMessage.author.title;
+            imagePath = chan.lastMessage.author.picture;
+            lastMessageTime = chan.lastMessage.dtCreated;
+            lastMessage = chan.lastMessage.text;
+        }
+
         public void Actions(Network worker)
         {
-            switch ((int)lastAction)
+            UserActions currentAction;
+            switch (lastMessage)
             {
-                case -1:
+                case "/help":
+                    currentAction = UserActions.Help;
+                    break;
+                case "/repost":
+                    currentAction = UserActions.RequestRepost;
+                    break;
+                case "/redact":
+                    currentAction = UserActions.RequestHelp;
+                    break;
+                case "/card":
+                    currentAction = UserActions.RequestAddCard;
+                    break;
+                default:
+                    currentAction = UserActions.Start;
+                    break;
+            }
+            switch (currentAction)
+            {
+                case (UserActions.Start):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id,"Бот работает, помощи ещё нет, но скоро будет");
+                    if (lastAction == UserActions.Undefined)
+                    {
+                        worker.AnswerUser(id, "Добро пожаловать! Это автоматический бот.");
+                        currentAction = UserActions.Help;
+                    }
+                    if (lastAction == UserActions.Start || currentAction == UserActions.Help)
+                        worker.AnswerUser(id, "Для работы необходимо ввести одну из команд бота.\nПосмотреть все доступные на данный момент команды можно отправив /help ");
                     lastAction = UserActions.Start;
                     break;
-                case 0:
-                    worker.AnswerUser(id, "Не пытайся что-то изменитб");
-                    lastAction = UserActions.Start;
-                    goto default;
+                case (UserActions.Help):
+                    worker.MarkAsRead(id);
+                    worker.AnswerUser(id, "Текущий список команд:\n" +
+                        "/help - вызов справки\n" +
+                        "/repost - отправить запрос на репост\n" +
+                        "/redact - отправить запрос на помощь с доработкой статьи\n" +
+                        "/card - в процессе");
+                    lastAction = UserActions.Help;
+                    break;
+                case (UserActions.RequestRepost):
+                    worker.MarkAsRead(id);
+                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    break;
+                case (UserActions.RequestHelp):
+                    worker.MarkAsRead(id);
+                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    break;
+                case (UserActions.RequestAddCard):
+                    worker.MarkAsRead(id);
+                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    break;
                 default:
                     worker.MarkAsRead(id);
+                    if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
+                        worker.AnswerUser(id, "На данный момент функционал ещё не готов");
                     break;
             }
         }
@@ -53,11 +106,11 @@ namespace DTF_message_bot
         Help = 1,
         RequestRepost = 2,
         RequestHelp = 3,
-        RequestAddCart = 4,
-        RequestAddCart_descr = 5,
-        RequestAddCart_links = 6,
-        RequestAddCart_tags = 7,
-        RequestAddCart_finish = 8,
+        RequestAddCard = 4,
+        RequestAddCard_descr = 5,
+        RequestAddCard_links = 6,
+        RequestAddCard_tags = 7,
+        RequestAddCard_finish = 8,
         RequestTags = 9
     }
 }

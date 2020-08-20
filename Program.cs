@@ -71,10 +71,8 @@ namespace DTF_message_bot
                                 }
                                 else
                                 {
-                                    StreamReader readUser = new StreamReader("users/" + chan.id + ".json");
-                                    activeUsers.Add(JsonSerializer.Deserialize<User>(readUser.ReadToEnd()));
+                                    activeUsers.Add(JsonSerializer.Deserialize<User>(File.ReadAllText("users/" + chan.id + ".json")));
                                     Console.WriteLine("Подключился пользователь с id = {0}", chan.id);
-                                    readUser.Close();
                                 }
                                 currentActive = activeUsers.Count - 1;
                             }
@@ -82,6 +80,9 @@ namespace DTF_message_bot
                             {
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
+                            activeUsers.ElementAt(currentActive).UpdateUser(chan);
+                            Console.WriteLine(chan.lastMessage.text);
+                            Console.WriteLine(activeUsers.ElementAt(currentActive).lastMessage);
                             activeUsers.ElementAt(currentActive).Actions(worker);
                         }
                     }
