@@ -19,8 +19,8 @@ namespace DTF_message_bot
         public string Description { get; set; }
         public ArrayList links { get; set; }
         public ArrayList tags { get; set; }
-        public DateTime lastRequestRepost { get; set; }
-        public DateTime lastRequestHelp { get; set; }
+        public double lastRequestRepost { get; set; }
+        public double lastRequestHelp { get; set; }
 
         public void SaveUserJson() //запись в файл данных о пользователе
         {
@@ -53,6 +53,14 @@ namespace DTF_message_bot
                     currentAction = UserActions.RequestAddCard;
                     break;
                 default:
+                    if (lastAction == UserActions.RequestRepost)
+                    {
+                        worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                    }
+                    else if (lastAction == UserActions.RequestRepost)
+                    {
+                        worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                    }
                     currentAction = UserActions.Start;
                     break;
             }
@@ -61,12 +69,12 @@ namespace DTF_message_bot
                 case (UserActions.Start):
                     worker.MarkAsRead(id);
                     if (lastAction == UserActions.Undefined)
-                    {
-                        worker.AnswerUser(id, "Добро пожаловать! Это автоматический бот.");
-                        currentAction = UserActions.Help;
-                    }
+                        worker.AnswerUser(id, "Добро пожаловать в бота Блогосферы!\n" +
+                            "Для работы необходимо ввести одну из команд бота.\n" +
+                            "Посмотреть все доступные на данный момент команды можно отправив /help");
                     if (lastAction == UserActions.Start || currentAction == UserActions.Help)
-                        worker.AnswerUser(id, "Для работы необходимо ввести одну из команд бота.\nПосмотреть все доступные на данный момент команды можно отправив /help ");
+                        worker.AnswerUser(id, "Для работы необходимо ввести одну из команд бота.\n" +
+                            "Посмотреть все доступные на данный момент команды можно отправив /help ");
                     lastAction = UserActions.Start;
                     break;
                 case (UserActions.Help):
@@ -80,20 +88,38 @@ namespace DTF_message_bot
                     break;
                 case (UserActions.RequestRepost):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= 604800)
+                    {
+                        lastAction = UserActions.RequestRepost;
+                        worker.AnswerUser(id, "Отправьте ссылку на статью для репоста");
+                    }
+                    else
+                    {
+                        worker.AnswerUser(id, "Не прошло достаточно времени с момента последнего запроса");
+                        lastAction = UserActions.TaskCompleted;
+                    }
                     break;
                 case (UserActions.RequestHelp):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= 604800)
+                    {
+                        lastAction = UserActions.RequestRepost;
+                        worker.AnswerUser(id, "Отправьте ссылку на статью для редактуры");
+                    }
+                    else
+                    {
+                        worker.AnswerUser(id, "Не прошло достаточно времени с момента последнего запроса");
+                        lastAction = UserActions.TaskCompleted;
+                    }
                     break;
                 case (UserActions.RequestAddCard):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                    worker.AnswerUser(id, "На данный момент функционал ещё не готов, у меня лапоньки");
                     break;
                 default:
                     worker.MarkAsRead(id);
                     if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
-                        worker.AnswerUser(id, "На данный момент функционал ещё не готов");
+                        worker.AnswerUser(id, "Необходимо ввести команду");
                     break;
             }
         }
@@ -111,6 +137,7 @@ namespace DTF_message_bot
         RequestAddCard_links = 6,
         RequestAddCard_tags = 7,
         RequestAddCard_finish = 8,
-        RequestTags = 9
+        RequestTags = 9,
+        TaskCompleted = 10
     }
 }
