@@ -4,19 +4,22 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 
 namespace DTF_message_bot
 {
-    class Network
+    class OsnovaClient
     {
-        static HttpClient client = new HttpClient();
+        private readonly HttpClient client;
         public int LastStatus;
         public string LastResult;
 
-        public void setupNetworkToken(string site, string apiVer, string token) //Настройка работы по токену
+        public OsnovaClient(IOptions<OsnovaOptions> optionsAccessor)
         {
-            client.DefaultRequestHeaders.Add("X-Device-Token", token);
-            client.BaseAddress = new Uri("https://api."+site+".ru/"+apiVer+"/");
+            var options = optionsAccessor.Value;
+            client = new HttpClient();
+            client.DefaultRequestHeaders.Add("X-Device-Token", options.Token);
+            client.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
         }
 
         private static async Task<string> RawGET(HttpClient client, string query) //Отправка GET-запроса с полученим чистого json
@@ -89,7 +92,8 @@ namespace DTF_message_bot
             }
             LastResult = RawPOST(client, "m/markAsRead", content).Result;
         }
-        public MessageData requestChannelsData() //Запрашивает информацию о входящих
+
+        public MessageData RequestChannelsData() //Запрашивает информацию о входящих
         {
             return JsonSerializer.Deserialize<MessageData>(RawGET(client, "m/channels").Result);
         }

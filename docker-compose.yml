@@ -10,6 +10,9 @@ services:
     environment:
       - DTFMB_PersistentState__Directory=/state
       - DTFMB_Logging__Console__DisableColors=true
+      - DTFMB_Osnova__Host=dtf
+      - DTFMB_Osnova__Version=v1.9
+      - DTFMB_Osnova__Token=TODO
     volumes:
       - state-volume:/state
 
