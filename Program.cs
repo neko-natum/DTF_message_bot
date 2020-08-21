@@ -34,6 +34,7 @@ namespace DTF_message_bot
                     services.AddOptions();
                     services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
                     services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
+                    services.AddTransient<OsnovaClient>();
                     services.AddSingleton<DtfMessageBotService>();
                     services.AddHostedService<DtfMessageBotService>();
                 })
