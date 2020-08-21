@@ -21,7 +21,7 @@ namespace DTF_message_bot
                 {
                     configuration.AddJsonFile("appsettings.json");
                     configuration.AddJsonFile("appsettings.secrets.json", optional: true);
-                    configuration.AddEnvironmentVariables("DTFMB__");
+                    configuration.AddEnvironmentVariables("DTFMB_");
                     configuration.AddCommandLine(args);
                 })
                 .ConfigureLogging((ctx, logging) =>
