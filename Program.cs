@@ -71,12 +71,23 @@ namespace DTF_message_bot
             return JsonSerializer.Deserialize<User>(await File.ReadAllTextAsync(ResolveAbsolutePath("users/" + id + ".json")));
         }
 
+        private void EnsureUsersDirectoryExists()
+        {
+            var dir = Path.Combine(_stateDir, "users");
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+        }
+
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Бот для мессенджера Очобы\nСделано долбоёбом Neko Natum");
             _logger.LogInformation("Поiхалi");
-            List<User> activeUsers = new List<User>();
 
+            EnsureUsersDirectoryExists();
+
+            List<User> activeUsers = new List<User>();
             do
             {
                 _osnova.Listen();
