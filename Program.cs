@@ -101,7 +101,7 @@ namespace DTF_message_bot
                             int currentActive;
                             if (!activeUsers.Exists(x => x.id == chan.id))
                             {
-                                if (!File.Exists("users/" + chan.id + ".json"))
+                                if (!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json")))
                                 {
                                     activeUsers.Add(new User()
                                     {
