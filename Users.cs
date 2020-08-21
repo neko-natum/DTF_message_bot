@@ -22,10 +22,6 @@ namespace DTF_message_bot
         public double lastRequestRepost { get; set; }
         public double lastRequestHelp { get; set; }
 
-        public void SaveUserJson() //запись в файл данных о пользователе
-        {
-            File.WriteAllText("users/" + id + ".json", JsonSerializer.Serialize<User>(this));
-        }
         public void UpdateUser(Channels chan)
         {
             id = chan.id;
@@ -35,7 +31,7 @@ namespace DTF_message_bot
             lastMessage = chan.lastMessage.text;
         }
 
-        public void Actions(Network worker)
+        public void Actions(OsnovaClient worker)
         {
             UserActions currentAction;
             switch (lastMessage)

@@ -1,47 +1,87 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
+using Microsoft.Extensions.Hosting;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DTF_message_bot
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
-            ConsoleKeyInfo key = new ConsoleKeyInfo();
-            Console.WriteLine("Бот для мессенджера Очобы\nСделано долбоёбом Neko Natum\n");
-            //Инициализируем все классы перед работой
-            BotConfig config = new BotConfig();
-            MessageData data = new MessageData();
-            Network worker = new Network();
+            await Host.CreateDefaultBuilder()
+                .ConfigureAppConfiguration(configuration =>
+                {
+                    configuration.AddJsonFile("appsettings.json");
+                    configuration.AddJsonFile("appsettings.secrets.json", optional: true);
+                    configuration.AddEnvironmentVariables("DTFMB__");
+                    configuration.AddCommandLine(args);
+                })
+                .ConfigureLogging((ctx, logging) =>
+                {
+                    logging.AddConsole();
+                    logging.AddConfiguration(ctx.Configuration.GetSection("Logging"));
+                })
+                .ConfigureServices((ctx, services) =>
+                {
+                    services.AddOptions();
+                    services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
+                    services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
+                    services.AddSingleton<DtfMessageBotService>();
+                    services.AddHostedService<DtfMessageBotService>();
+                })
+                .RunConsoleAsync();
+        }
+    }
+
+    internal class DtfMessageBotService : ContinuousHostedService
+    {
+        private readonly OsnovaClient _osnova;
+        private readonly ILogger<DtfMessageBotService> _logger;
+        private readonly string _stateDir;
+
+        public DtfMessageBotService(
+            OsnovaClient osnova,
+            IOptions<PersistentStateOptions> storageOptionsAccessor,
+            ILogger<DtfMessageBotService> logger,
+            IHostApplicationLifetime host) : base(host)
+        {
+            _osnova = osnova;
+            _logger = logger;
+            _stateDir = storageOptionsAccessor.Value.Directory;
+        }
+
+        private string ResolveAbsolutePath(string relativePath) => Path.Combine(_stateDir, relativePath);
+
+        private async Task SaveUser(User user)
+        {
+            await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
+        }
+
+        private async Task<User> LoadUser(string id)
+        {
+            return JsonSerializer.Deserialize<User>(await File.ReadAllTextAsync(ResolveAbsolutePath("users/" + id + ".json")));
+        }
+
+        protected override async Task RunServiceAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Бот для мессенджера Очобы\nСделано долбоёбом Neko Natum");
+            _logger.LogInformation("Поiхалi");
             List<User> activeUsers = new List<User>();
-            //
-
-            config.readConfig();
-            worker.setupNetworkToken(config.site, config.version, config.token);
-            Console.WriteLine("Для завершения работы нажмите Ctrl+Z");
-
-            var cts = new CancellationTokenSource();
-            var consoleReaderThread = new Thread(() =>
-            {
-                while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
-                cts.Cancel();
-            });
-            consoleReaderThread.Start();
-
-            // есть еще такая фича, но на моем опыте не работала, плюс только Ctrl+C/Ctrl+Break в теории
-            Console.CancelKeyPress += (_, __) => cts.Cancel();
 
             do
             {
-                worker.Listen();
-                if (worker.LastStatus > 0)
+                _osnova.Listen();
+                if (_osnova.LastStatus > 0)
                 {
-                    data = worker.requestChannelsData();
+                    var data = _osnova.RequestChannelsData();
                     foreach (Channels chan in data.result.channels)
                     {
                         if (chan.unreadCount != 0)
@@ -64,13 +104,13 @@ namespace DTF_message_bot
                                         links = null,
                                         tags = null
                                     });
-                                    activeUsers.Last().SaveUserJson();
-                                    Console.WriteLine("Создан новый пользователь с id = {0}", chan.id);
+                                    await SaveUser(activeUsers.Last());
+                                    _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
                                 }
                                 else
                                 {
-                                    activeUsers.Add(JsonSerializer.Deserialize<User>(File.ReadAllText("users/" + chan.id + ".json")));
-                                    Console.WriteLine("Подключился пользователь с id = {0}", chan.id);
+                                    activeUsers.Add(await LoadUser(chan.id));
+                                    _logger.LogInformation("Подключился пользователь с id = {0}", chan.id);
                                 }
                                 currentActive = activeUsers.Count - 1;
                             }
@@ -79,34 +119,28 @@ namespace DTF_message_bot
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            //Console.WriteLine(chan.lastMessage.text);
-                            //Console.WriteLine(activeUsers.ElementAt(currentActive).lastMessage);
-                            activeUsers.ElementAt(currentActive).Actions(worker);
+                            _logger.LogInformation(chan.lastMessage.text);
+                            _logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
+                            activeUsers.ElementAt(currentActive).Actions(_osnova);
                         }
                     }
                 }
-                else if (worker.LastStatus == 0)
+                else if (_osnova.LastStatus == 0)
                 {
-                    //Console.WriteLine("Nothing to report!");
-                    Thread.Sleep(1000);
+                    await Task.Delay(1000);
                 }
-                else if (worker.LastStatus == -1)
+                else if (_osnova.LastStatus == -1)
                 {
-                    Console.WriteLine("Произошла ошибка сети, бот будет остановлен");
-                    Thread.Sleep(1000);
+                    _logger.LogError("Произошла ошибка сети, бот будет остановлен");
                 }
             }
-            while (!cts.IsCancellationRequested && worker.LastStatus >= 0);
+            while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);
 
             foreach (User user in activeUsers)
             {
-                user.SaveUserJson();
+                await SaveUser(user);
             }
-
-            Console.WriteLine("Shutdown!");
         }
-
-        
     }
 }
 
