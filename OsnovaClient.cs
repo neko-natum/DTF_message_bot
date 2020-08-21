@@ -93,6 +93,11 @@ namespace DTF_message_bot
             LastResult = RawPOST(client, "m/markAsRead", content).Result;
         }
 
+        public bool isAuthor(string id, string link) //проверка авторства
+        {
+            return RawGET(client, "locate?url="+link).Result.Contains("\"author\":{\"id\":"+id+",");
+        }
+
         public MessageData RequestChannelsData() //Запрашивает информацию о входящих
         {
             return JsonSerializer.Deserialize<MessageData>(RawGET(client, "m/channels").Result);

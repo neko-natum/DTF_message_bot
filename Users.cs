@@ -49,15 +49,38 @@ namespace DTF_message_bot
                     currentAction = UserActions.RequestAddCard;
                     break;
                 default:
-                    if (lastAction == UserActions.RequestRepost)
+                    switch (lastAction)
                     {
-                        worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                        case UserActions.RequestRepost:
+                            if (worker.isAuthor(id, lastMessage))
+                            {
+                                worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                                currentAction = UserActions.TaskCompleted;
+                                break;
+                            }
+                            else
+                            {
+                                worker.AnswerUser(id, "Принимаются только собственные статьи");
+                                currentAction = UserActions.RequestRepost;
+                                break;
+                            }
+                        case UserActions.RequestHelp:
+                            if (worker.isAuthor(id, lastMessage))
+                            {
+                                worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                                currentAction = UserActions.TaskCompleted;
+                                break;
+                            }
+                            else
+                            {
+                                worker.AnswerUser(id, "Принимаются только собственные статьи");
+                                currentAction = UserActions.RequestHelp;
+                                break;
+                            }
+                        default:
+                            currentAction = UserActions.Start;
+                            break;
                     }
-                    else if (lastAction == UserActions.RequestRepost)
-                    {
-                        worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
-                    }
-                    currentAction = UserActions.Start;
                     break;
             }
             switch (currentAction)

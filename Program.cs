@@ -111,10 +111,7 @@ namespace DTF_message_bot
                                         lastMessageTime = chan.lastMessage.dtCreated,
                                         lastMessage = chan.lastMessage.text,
                                         lastAction = UserActions.Undefined,
-                                        isCardExists = false,
-                                        Description = null,
-                                        links = null,
-                                        tags = null
+                                        isCardExists = false
                                     });
                                     await SaveUser(activeUsers.Last());
                                     _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
