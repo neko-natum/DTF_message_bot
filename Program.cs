@@ -128,8 +128,8 @@ namespace DTF_message_bot
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            _logger.LogInformation(chan.lastMessage.text);
-                            _logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
+                            //_logger.LogInformation(chan.lastMessage.text);
+                            //_logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
                             activeUsers.ElementAt(currentActive).Actions(_osnova);
                         }
                     }
