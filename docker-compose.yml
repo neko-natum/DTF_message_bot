@@ -7,14 +7,12 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
-    environment:
-      - DTFMB_PersistentState__Directory=/state
-      - DTFMB_Logging__Console__DisableColors=true
-      - DTFMB_Osnova__Host=dtf
-      - DTFMB_Osnova__Version=v1.9
-      - DTFMB_Osnova__Token=TODO
+
+  mongo:
+    image: mongo
+    restart: always
     volumes:
-      - state-volume:/state
+      - mongo-volume:/data/db
 
 volumes:
-  state-volume:
+  mongo-volume:

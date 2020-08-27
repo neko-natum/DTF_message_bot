@@ -3,7 +3,8 @@
     "DTF_message_bot": {
       "commandName": "Project",
       "environmentVariables": {
-        "DTFMB_PersistentState__Directory": "./state"
+        "DTFMB_PersistentState__Directory": "./state",
+        "DTFMB_Mongo__ConnectionString": "mongodb://localhost"
       }
     },
     "Docker": {

@@ -1,3 +1,7 @@
 version: '3.4'
 services:
-  dtf_message_bot:
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
