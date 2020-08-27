@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -35,6 +34,7 @@ namespace DTF_message_bot
                     services.AddOptions();
                     services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
                     services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
+                    services.Configure<MongoOptions>(ctx.Configuration.GetSection("Mongo"));
                     services.AddTransient<OsnovaClient>();
                     services.AddSingleton<DtfMessageBotService>();
                     services.AddHostedService<DtfMessageBotService>();
@@ -48,16 +48,19 @@ namespace DTF_message_bot
         private readonly OsnovaClient _osnova;
         private readonly ILogger<DtfMessageBotService> _logger;
         private readonly string _stateDir;
+        private readonly string _mongoConnectionString;
 
         public DtfMessageBotService(
             OsnovaClient osnova,
             IOptions<PersistentStateOptions> storageOptionsAccessor,
+            IOptions<MongoOptions> mongoOptionsAccessor,
             ILogger<DtfMessageBotService> logger,
             IHostApplicationLifetime host) : base(host)
         {
             _osnova = osnova;
             _logger = logger;
             _stateDir = storageOptionsAccessor.Value.Directory;
+            _mongoConnectionString = mongoOptionsAccessor.Value.ConnectionString;
         }
 
         private string ResolveAbsolutePath(string relativePath) => Path.Combine(_stateDir, relativePath);
@@ -106,12 +109,12 @@ namespace DTF_message_bot
             _logger.LogInformation("Поiхалi");
 
             EnsureUsersDirectoryExists();
-            //сTODO вынести куда-нибудь это нахуй или сделать кошерней
-            //И не надо светить базой в интернеты, пусть будет локальная
-            string con = "mongodb://localhost:27017";
-            MongoClient client = new MongoClient(con);
+            // TODO вынести куда-нибудь это нахуй или сделать кошерней
+            var client = new MongoClient(_mongoConnectionString);
             var db = client.GetDatabase("messagebot");
-            var UsersCollection = db.GetCollection<User>("Users");
+            var usersCollection = db.GetCollection<User>("Users");
+
+            _logger.LogInformation("Знакомых пользователей: {0}", await usersCollection.EstimatedDocumentCountAsync());
 
             List<User> activeUsers = new List<User>();
             do
@@ -127,7 +130,7 @@ namespace DTF_message_bot
                             int currentActive;
                             if (!activeUsers.Exists(x => x.id == chan.id))
                             {
-                                if (!IsUserExists(chan.id, UsersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
+                                if (!IsUserExists(chan.id, usersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
                                 {
                                     activeUsers.Add(new User()
                                     {
@@ -140,12 +143,12 @@ namespace DTF_message_bot
                                         isCardExists = false,
                                         isAdmin = false
                                     });
-                                    await CreateUser(activeUsers.Last(), UsersCollection);
+                                    await CreateUser(activeUsers.Last(), usersCollection);
                                     _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
                                 }
                                 else
                                 {
-                                    activeUsers.Add(await LoadUser(chan.id, UsersCollection));
+                                    activeUsers.Add(await LoadUser(chan.id, usersCollection));
                                     _logger.LogInformation("Подключился пользователь с id = {0}", chan.id);
                                 }
                                 currentActive = activeUsers.Count - 1;
@@ -175,7 +178,7 @@ namespace DTF_message_bot
 
             foreach (User user in activeUsers)
             {
-                await UpdateUser(user, UsersCollection);
+                await UpdateUser(user, usersCollection);
             }
         }
     }
