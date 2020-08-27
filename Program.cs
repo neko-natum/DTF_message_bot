@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 
 namespace DTF_message_bot
 {
@@ -61,14 +62,33 @@ namespace DTF_message_bot
 
         private string ResolveAbsolutePath(string relativePath) => Path.Combine(_stateDir, relativePath);
 
-        private async Task SaveUser(User user)
+        private async Task CreateUser(User user, IMongoCollection<User> UserCollection)
         {
-            await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
+            //await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
+            await UserCollection.InsertOneAsync(user);
         }
 
-        private async Task<User> LoadUser(string id)
+        private async Task UpdateUser(User user, IMongoCollection<User> UserCollection)
         {
-            return JsonSerializer.Deserialize<User>(await File.ReadAllTextAsync(ResolveAbsolutePath("users/" + id + ".json")));
+            var filter = Builders<User>.Filter.Eq("id", user.id);
+            //await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
+            await UserCollection.ReplaceOneAsync(filter, user, new ReplaceOptions { IsUpsert = true });
+        }
+
+        private async Task<User> LoadUser(string id, IMongoCollection<User> UserCollection)
+        {
+            var filter = Builders<User>.Filter.Eq("id", id);
+            //return JsonSerializer.Deserialize<User>(await File.ReadAllTextAsync(ResolveAbsolutePath("users/" + id + ".json")));
+            var result = await UserCollection.Find(filter).ToListAsync();
+            if (result.Count > 1) _logger.LogInformation("Что за хуйня? Почему больше одного ID?");
+            return result.First();
+        }
+        
+        private bool IsUserExists(string id, IMongoCollection<User> UserCollection)
+        {
+            var filter = Builders<User>.Filter.Eq("id", id);
+            var result = UserCollection.Find(filter).ToList();
+            return result.Any();
         }
 
         private void EnsureUsersDirectoryExists()
@@ -86,6 +106,12 @@ namespace DTF_message_bot
             _logger.LogInformation("Поiхалi");
 
             EnsureUsersDirectoryExists();
+            //сTODO вынести куда-нибудь это нахуй или сделать кошерней
+            //И не надо светить базой в интернеты, пусть будет локальная
+            string con = "mongodb://localhost:27017";
+            MongoClient client = new MongoClient(con);
+            var db = client.GetDatabase("messagebot");
+            var UsersCollection = db.GetCollection<User>("Users");
 
             List<User> activeUsers = new List<User>();
             do
@@ -101,7 +127,7 @@ namespace DTF_message_bot
                             int currentActive;
                             if (!activeUsers.Exists(x => x.id == chan.id))
                             {
-                                if (!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json")))
+                                if (!IsUserExists(chan.id, UsersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
                                 {
                                     activeUsers.Add(new User()
                                     {
@@ -111,14 +137,15 @@ namespace DTF_message_bot
                                         lastMessageTime = chan.lastMessage.dtCreated,
                                         lastMessage = chan.lastMessage.text,
                                         lastAction = UserActions.Undefined,
-                                        isCardExists = false
+                                        isCardExists = false,
+                                        isAdmin = false
                                     });
-                                    await SaveUser(activeUsers.Last());
+                                    await CreateUser(activeUsers.Last(), UsersCollection);
                                     _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
                                 }
                                 else
                                 {
-                                    activeUsers.Add(await LoadUser(chan.id));
+                                    activeUsers.Add(await LoadUser(chan.id, UsersCollection));
                                     _logger.LogInformation("Подключился пользователь с id = {0}", chan.id);
                                 }
                                 currentActive = activeUsers.Count - 1;
@@ -130,7 +157,8 @@ namespace DTF_message_bot
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
                             //_logger.LogInformation(chan.lastMessage.text);
                             //_logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
-                            activeUsers.ElementAt(currentActive).Actions(_osnova);
+                            activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                            //await UpdateUser(activeUsers.ElementAt(currentActive), UsersCollection); //хз насколько правильно долбить базу после каждого чиха, но пусть будет
                         }
                     }
                 }
@@ -147,7 +175,7 @@ namespace DTF_message_bot
 
             foreach (User user in activeUsers)
             {
-                await SaveUser(user);
+                await UpdateUser(user, UsersCollection);
             }
         }
     }

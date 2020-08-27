@@ -1,14 +1,14 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Text.Json;
+using MongoDB.Driver;
+using MongoDB.Bson;
+using System.Linq;
 
 namespace DTF_message_bot
 {
     class User
     {
+        [MongoDB.Bson.Serialization.Attributes.BsonId]
         public string id { get; set; }
         public string username { get; set; }
         public string imagePath { get; set; }
@@ -17,10 +17,11 @@ namespace DTF_message_bot
         public UserActions lastAction { get; set; }
         public bool isCardExists { get; set; }
         public string Description { get; set; }
-        public ArrayList links { get; set; }
-        public ArrayList tags { get; set; }
+        public List<string> links { get; set; }
+        public List<string> tags { get; set; }
         public double lastRequestRepost { get; set; }
-        public double lastRequestHelp { get; set; }
+        public bool isAdmin { get; set; }
+        //public double lastRequestHelp { get; set; }
 
         public void UpdateUser(Channels chan)
         {
@@ -31,52 +32,78 @@ namespace DTF_message_bot
             lastMessage = chan.lastMessage.text;
         }
 
-        public void Actions(OsnovaClient worker)
+        public void Actions(OsnovaClient worker, IMongoDatabase database)
         {
             UserActions currentAction;
+            string answer="";
+            var RequestsCollection = database.GetCollection<Request>("Requests");
             switch (lastMessage)
             {
-                case "/help":
+                case string temp when temp.Contains("/help"):
                     currentAction = UserActions.Help;
                     break;
-                case "/repost":
+                case string temp when temp.Contains("/repost"):
                     currentAction = UserActions.RequestRepost;
                     break;
-                case "/redact":
-                    currentAction = UserActions.RequestHelp;
-                    break;
-                case "/card":
+                case string temp when temp.Contains("/card"):
                     currentAction = UserActions.RequestAddCard;
+                    break;
+                case string temp when temp.Contains("/getRequests"):
+                    var builder = Builders<Request>.Filter;
+                    var filter = builder.Eq("isApproved", false) & builder.Eq("isRejected", false);
+                    var result = RequestsCollection.Find(filter).ToList();
+                    if (!result.Any())
+                    {
+                        answer += "Нет ожидающих запросов";
+                    }
+                    else
+                    {
+                        int i = 0;
+                        foreach (Request request in result)
+                        {
+                            answer += ++i + ". Пост: " + request.link + " ; дата: " + request.dateCreation + "\n";
+                        }
+                    }
+                    lastAction = currentAction = UserActions.Neutral;
                     break;
                 default:
                     switch (lastAction)
                     {
                         case UserActions.RequestRepost:
-                            if (worker.isAuthor(id, lastMessage))
+                            if (!Uri.IsWellFormedUriString(lastMessage, UriKind.RelativeOrAbsolute))
                             {
-                                worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
-                                currentAction = UserActions.TaskCompleted;
-                                break;
-                            }
-                            else
-                            {
-                                worker.AnswerUser(id, "Принимаются только собственные статьи");
+                                answer += "Не является ссылкой. ";
                                 currentAction = UserActions.RequestRepost;
                                 break;
                             }
-                        case UserActions.RequestHelp:
+                            if (!lastMessage.Contains("dtf.ru"))
+                            {
+                                answer += "Не является ссылкой на статью на DTF. ";
+                                currentAction = UserActions.RequestRepost;
+                                break;
+                            }
                             if (worker.isAuthor(id, lastMessage))
                             {
-                                worker.AnswerUser(id, "Я должен был записать статью и сказать что вы прекрасны, но этого функционала ещё нету");
+                                RequestsCollection.InsertOneAsync(new Request() 
+                                {
+                                    id = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds.GetHashCode().ToString(), //не ржать, меня реально плохо с фантазией
+                                    user_id = id,
+                                    link = lastMessage,
+                                    type = "repost",
+                                    dateCreation = DateTime.UtcNow
+                                }
+                                );
                                 currentAction = UserActions.TaskCompleted;
+                                lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                                 break;
                             }
                             else
                             {
-                                worker.AnswerUser(id, "Принимаются только собственные статьи");
-                                currentAction = UserActions.RequestHelp;
+                                answer += "Принимаются только собственные статьи. ";
+                                currentAction = UserActions.RequestRepost;
                                 break;
                             }
+                        
                         default:
                             currentAction = UserActions.Start;
                             break;
@@ -88,59 +115,56 @@ namespace DTF_message_bot
                 case (UserActions.Start):
                     worker.MarkAsRead(id);
                     if (lastAction == UserActions.Undefined)
-                        worker.AnswerUser(id, "Добро пожаловать в бота Блогосферы!\n" +
+                        answer += "Добро пожаловать в бота Блогосферы!\n" +
                             "Для работы необходимо ввести одну из команд бота.\n" +
-                            "Посмотреть все доступные на данный момент команды можно отправив /help");
+                            "Посмотреть все доступные на данный момент команды можно отправив /help";
                     if (lastAction == UserActions.Start || currentAction == UserActions.Help)
-                        worker.AnswerUser(id, "Для работы необходимо ввести одну из команд бота.\n" +
-                            "Посмотреть все доступные на данный момент команды можно отправив /help ");
+                        answer += "Для работы необходимо ввести одну из команд бота.\n" +
+                            "Посмотреть все доступные на данный момент команды можно отправив /help ";
                     lastAction = UserActions.Start;
                     break;
                 case (UserActions.Help):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id, "Текущий список команд:\n" +
+                    answer += "Текущий список команд:\n" +
                         "/help - вызов справки\n" +
                         "/repost - отправить запрос на репост\n" +
-                        "/redact - отправить запрос на помощь с доработкой статьи\n" +
-                        "/card - в процессе");
+                        "/card - в процессе";
+                    if(isAdmin)
+                        answer += "\nРасширенный список команд:\n" +
+                        "/getRequests - получить список запросов на репост\n" +
+                        "/approve %ссылка на пост% - отметить запрос как одобренный\n" +
+                        "/reject %ссылка на пост% - отметить запрос как отклонённый";
                     lastAction = UserActions.Help;
                     break;
                 case (UserActions.RequestRepost):
                     worker.MarkAsRead(id);
-                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= 604800)
+                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= /*60480*/0)
                     {
                         lastAction = UserActions.RequestRepost;
-                        worker.AnswerUser(id, "Отправьте ссылку на статью для репоста");
+                        answer += "Отправьте ссылку на статью для репоста. ";
                     }
                     else
                     {
-                        worker.AnswerUser(id, "Не прошло достаточно времени с момента последнего запроса");
-                        lastAction = UserActions.TaskCompleted;
-                    }
-                    break;
-                case (UserActions.RequestHelp):
-                    worker.MarkAsRead(id);
-                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= 604800)
-                    {
-                        lastAction = UserActions.RequestRepost;
-                        worker.AnswerUser(id, "Отправьте ссылку на статью для редактуры");
-                    }
-                    else
-                    {
-                        worker.AnswerUser(id, "Не прошло достаточно времени с момента последнего запроса");
-                        lastAction = UserActions.TaskCompleted;
+                        answer += "Не прошло достаточно времени с момента последнего запроса. На данный момент стоит ограничение в 1 запрос в неделю. ";
+                        lastAction = UserActions.Start;
                     }
                     break;
                 case (UserActions.RequestAddCard):
                     worker.MarkAsRead(id);
-                    worker.AnswerUser(id, "На данный момент функционал ещё не готов, у меня лапоньки");
+                    answer += "На данный момент функционал ещё не готов, у меня лапоньки. ";
+                    break;
+                case (UserActions.TaskCompleted):
+                    worker.MarkAsRead(id);
+                    answer += "Данные записаны и отправлены на проверку. ";
+                    lastAction = UserActions.Start;
                     break;
                 default:
                     worker.MarkAsRead(id);
                     if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
-                        worker.AnswerUser(id, "Необходимо ввести команду");
+                        answer+="Необходимо ввести команду. ";
                     break;
             }
+            if(answer!="") worker.AnswerUser(id, answer);
         }
     }
 
@@ -157,6 +181,19 @@ namespace DTF_message_bot
         RequestAddCard_tags = 7,
         RequestAddCard_finish = 8,
         RequestTags = 9,
-        TaskCompleted = 10
+        TaskCompleted = 10,
+        Neutral = 11
     }
+
+    class Request {
+        [MongoDB.Bson.Serialization.Attributes.BsonId]
+        public string id { get; set; }
+        public string user_id { get; set; }
+        public string type { get; set; }
+        public string link { get; set; }
+        public DateTime dateCreation { get; set; }
+        public double isApproved { get; set; }
+        public double isRejected { get; set; }
+    }
+
 }
