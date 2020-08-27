@@ -23,6 +23,12 @@ namespace DTF_message_bot
         public bool isAdmin { get; set; }
         //public double lastRequestHelp { get; set; }
 
+        public User()
+        {
+            links = new List<string>();
+            tags = new List<string>();
+        }
+
         public void UpdateUser(Channels chan)
         {
             id = chan.id;
@@ -34,9 +40,11 @@ namespace DTF_message_bot
 
         public void Actions(OsnovaClient worker, IMongoDatabase database)
         {
-            UserActions currentAction;
+            UserActions currentAction = UserActions.Undefined;
             string answer="";
             var RequestsCollection = database.GetCollection<Request>("Requests");
+            var builder = Builders<Request>.Filter;
+            var CardsCollection = database.GetCollection<Card>("Cards");
             switch (lastMessage)
             {
                 case string temp when temp.Contains("/help"):
@@ -49,22 +57,35 @@ namespace DTF_message_bot
                     currentAction = UserActions.RequestAddCard;
                     break;
                 case string temp when temp.Contains("/getRequests"):
-                    var builder = Builders<Request>.Filter;
-                    var filter = builder.Eq("isApproved", false) & builder.Eq("isRejected", false);
-                    var result = RequestsCollection.Find(filter).ToList();
-                    if (!result.Any())
+                    if (isAdmin)
                     {
-                        answer += "Нет ожидающих запросов";
-                    }
-                    else
-                    {
-                        int i = 0;
-                        foreach (Request request in result)
+                        var filter = builder.Eq("isApproved", false) & builder.Eq("isRejected", false);
+                        var result = RequestsCollection.Find(filter).ToList();
+                        if (!result.Any())
                         {
-                            answer += ++i + ". Пост: " + request.link + " ; дата: " + request.dateCreation + "\n";
+                            answer += "Нет ожидающих запросов";
+                        }
+                        else
+                        {
+                            int i = 0;
+                            foreach (Request request in result)
+                            {
+                                answer += ++i + ". Пост: " + request.link + " ; дата: " + request.dateCreation + "\n";
+                            }
                         }
                     }
                     lastAction = currentAction = UserActions.Neutral;
+                    break;
+                case string temp when temp.Contains("/end"):
+                    if (lastAction == UserActions.RequestAddCard_links)
+                        currentAction = UserActions.RequestAddCard_tags;
+                    else if (lastAction == UserActions.RequestAddCard_tags)
+                        currentAction = UserActions.RequestAddCard_finish;
+                    else
+                    {
+                        answer += "Нечего завершать";
+                        currentAction = UserActions.Neutral;
+                    }
                     break;
                 default:
                     switch (lastAction)
@@ -103,7 +124,41 @@ namespace DTF_message_bot
                                 currentAction = UserActions.RequestRepost;
                                 break;
                             }
-                        
+                        case UserActions.RequestAddCard:
+                            if (lastMessage.Length > 1000)
+                            {
+                                answer += "Превышен порог по знакам.\n";
+                                currentAction = UserActions.RequestAddCard;
+                            }
+                            else
+                            {
+                                Description = lastMessage;
+                                currentAction = UserActions.RequestAddCard_links;
+                            }
+                            break;
+                        case UserActions.RequestAddCard_links:
+                            if (worker.isAuthor(id, lastMessage))
+                            {
+                                links.Add(lastMessage);
+                                if (links.Count < 5)
+                                    currentAction = UserActions.Neutral;
+                                if (links.Count == 5)
+                                    currentAction = UserActions.RequestAddCard_tags;
+                                break;
+                            }
+                            else
+                            {
+                                answer += "Принимаются только собственные статьи. ";
+                                currentAction = UserActions.Neutral;
+                                break;
+                            }
+                        case UserActions.RequestAddCard_tags:
+                            tags.Add(lastMessage);
+                            if (tags.Count < 5)
+                                currentAction = UserActions.Neutral;
+                            if (tags.Count == 5)
+                                currentAction = UserActions.RequestAddCard_finish;
+                            break;
                         default:
                             currentAction = UserActions.Start;
                             break;
@@ -118,7 +173,7 @@ namespace DTF_message_bot
                         answer += "Добро пожаловать в бота Блогосферы!\n" +
                             "Для работы необходимо ввести одну из команд бота.\n" +
                             "Посмотреть все доступные на данный момент команды можно отправив /help";
-                    if (lastAction == UserActions.Start || currentAction == UserActions.Help)
+                    if (lastAction == UserActions.Start || lastAction == UserActions.TaskCompleted)
                         answer += "Для работы необходимо ввести одну из команд бота.\n" +
                             "Посмотреть все доступные на данный момент команды можно отправив /help ";
                     lastAction = UserActions.Start;
@@ -151,17 +206,45 @@ namespace DTF_message_bot
                     break;
                 case (UserActions.RequestAddCard):
                     worker.MarkAsRead(id);
-                    answer += "На данный момент функционал ещё не готов, у меня лапоньки. ";
+                    answer += "Введите описание вашего блога. Постарайтесь ограничиться 1000 символов.";
+                    lastAction = UserActions.RequestAddCard;
                     break;
                 case (UserActions.TaskCompleted):
                     worker.MarkAsRead(id);
                     answer += "Данные записаны и отправлены на проверку. ";
                     lastAction = UserActions.Start;
                     break;
+                case (UserActions.RequestAddCard_links):
+                    answer += "Отправьте по одной за сообщение ссылке на лучшие по вашему мнению посты вашего авторства, но не более 5.\n" +
+                        "Чтобы завершить заполнение списка ссылок введите /end";
+                    lastAction = UserActions.RequestAddCard_links;
+                    break;
+                case (UserActions.RequestAddCard_tags):
+                    answer += "Отправьте по одной за сообщение теги, которые вы чаще всего используете, но не более 5. Старайтесь использовать те теги, которые используются в общих подсайтах.\n" +
+                        "Чтобы завершить заполнение списка тегов введите /end";
+                    lastAction = UserActions.RequestAddCard_tags;
+                    break;
+                case (UserActions.RequestAddCard_finish):
+                    answer += "Создание карточки завершено, ожидайте проверки";
+                    CardsCollection.InsertOneAsync(new Card()
+                    {
+                        id = id,
+                        username = username,
+                        imagePath = imagePath,
+                        Description = Description,
+                        links = links,
+                        tags = tags
+                    });
+                    lastAction = UserActions.TaskCompleted;
+                    break;
                 default:
                     worker.MarkAsRead(id);
                     if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
                         answer+="Необходимо ввести команду. ";
+                    /*if (lastAction == UserActions.RequestAddCard_links)
+                    {
+                        if(links.Count==0)
+                    }*/
                     break;
             }
             if(answer!="") worker.AnswerUser(id, answer);
@@ -195,5 +278,21 @@ namespace DTF_message_bot
         public double isApproved { get; set; }
         public double isRejected { get; set; }
     }
+    class Card
+    {
+        public string id { get; set; }
+        public string username { get; set; }
+        public string imagePath { get; set; }
+        public string Description { get; set; }
+        public List<string> links { get; set; }
+        public List<string> tags { get; set; }
+        public bool isApproved { get; set; }
+        public bool isRejected { get; set; }
 
+        public Card()
+        {
+            links = new List<string>();
+            tags = new List<string>();
+        }
+    }
 }
