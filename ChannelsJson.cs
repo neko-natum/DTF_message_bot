@@ -2,7 +2,7 @@
 
 namespace DTF_message_bot
 {
-    public class Data
+    public class AnotherPictureData //блядь разработчики очобы вы там совсем уже почему у вас куча разных блоков просто Data?
     {
         public string uuid { get; set; }
         public int width { get; set; }
@@ -17,7 +17,7 @@ namespace DTF_message_bot
     public class PictureData
     {
         public string type { get; set; }
-        public Data data { get; set; }
+        public AnotherPictureData data { get; set; }
     }
 
     public class Member
@@ -49,7 +49,7 @@ namespace DTF_message_bot
         public bool isBanned { get; set; }
     }
 
-    public class LastMessage
+    public class Message
     {
         public string id { get; set; }
         public int type { get; set; }
@@ -63,7 +63,7 @@ namespace DTF_message_bot
         public object replyTo { get; set; }
         public object replyToId { get; set; }
     }
-
+    //кусок для прямых запросов
     public class Channels
     {
         public string id { get; set; }
@@ -87,7 +87,7 @@ namespace DTF_message_bot
         public int ignoredType { get; set; }
         public bool isBanned { get; set; }
         public bool isVerified { get; set; }
-        public LastMessage lastMessage { get; set; }
+        public Message lastMessage { get; set; }
     }
 
     public class Result
@@ -99,6 +99,23 @@ namespace DTF_message_bot
     {
         public string message { get; set; }
         public Result result { get; set; }
+    }
+    //кусок для сокетов
+    public class Data
+    {
+        public Message message { get; set; }
+        public long idTmp { get; set; }
+        public string type { get; set; }
+        public string action { get; set; }
+        public Channel channel { get; set; }
+        public string channelId { get; set; }
+        public int counter { get; set; }
+    }
+
+    public class Socket
+    {
+        public string channel { get; set; }
+        public Data data { get; set; }
     }
 
 }

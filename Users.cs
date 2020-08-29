@@ -6,21 +6,25 @@ using System.Linq;
 
 namespace DTF_message_bot
 {
+    /*
+     * класс пользователя
+     * пишется в соответствующую таблицу бд
+     */
     class User
     {
         [MongoDB.Bson.Serialization.Attributes.BsonId]
-        public string id { get; set; }
-        public string username { get; set; }
-        public string imagePath { get; set; }
-        public double lastMessageTime { get; set; }
-        public string lastMessage { get; set; }
-        public UserActions lastAction { get; set; }
-        public bool isCardExists { get; set; }
-        public string Description { get; set; }
-        public List<string> links { get; set; }
-        public List<string> tags { get; set; }
-        public double lastRequestRepost { get; set; }
-        public bool isAdmin { get; set; }
+        public string id { get; set; } //идентификатор пользователя
+        public string username { get; set; } //nuff said
+        public string imagePath { get; set; } //nuff said, в основном ради карточки
+        public double lastMessageTime { get; set; } //на всякий случай для выгрузки из памяти неактивных, в юникстайме
+        public string lastMessage { get; set; } //отсюда берётся всё для дальнейшей логики
+        public UserActions lastAction { get; set; } //предыдущее состояние пользователя, очень важно потому что читается только самое последнее сообщение
+        public bool isCardExists { get; set; } //заготовка для проверки наличия карточки
+        public string Description { get; set; } //описание блога пользователя, возможно получится отказаться, но это сомнительно. Имеется в классе Card
+        public List<string> links { get; set; } //список ссылок на избранные статьи пользователя, возможно получится отказаться, но это сомнительно. Имеется в классе Card
+        public List<string> tags { get; set; } //список тегов блога пользователя, возможно получится отказаться, но это сомнительно. Имеется в классе Card
+        public double lastRequestRepost { get; set; } //дата в юникстайме последнего запроса на репост чтобы ограничить спам на бота
+        public bool isAdmin { get; set; } //понятия не имею зачем, всё равно юзлесс
         //public double lastRequestHelp { get; set; }
 
         public User()
@@ -28,7 +32,9 @@ namespace DTF_message_bot
             links = new List<string>();
             tags = new List<string>();
         }
-
+        /*
+         * не помню зачем, но на всякий обновляет данные для новых абонентов
+         */
         public void UpdateUser(Channels chan)
         {
             id = chan.id;
@@ -37,13 +43,20 @@ namespace DTF_message_bot
             lastMessageTime = chan.lastMessage.dtCreated;
             lastMessage = chan.lastMessage.text;
         }
+        /*
+         * обновление конкретных полей в таблице пользователей
+         * данные сюда передавать через фильтр update
+         */
         private void UpdateUserField(IMongoCollection<User> UsersCollection, UpdateDefinition<User> update)
         {
             var filter = Builders<User>.Filter.Eq("id", id);
             UsersCollection.UpdateOne(filter, update);
         }
-
-        public void Actions(OsnovaClient worker, IMongoDatabase database)
+        /* 
+        * основная функция логики бота, возвращает ответное сообщение в зависимости от входящего
+        * по возможности менять только её чтобы не сломать что-то в процессе
+        */
+        public string Actions(OsnovaClient worker, IMongoDatabase database) 
         {
             UserActions currentAction = UserActions.Undefined;
             string answer="";
@@ -51,7 +64,7 @@ namespace DTF_message_bot
             var builder = Builders<Request>.Filter;
             var CardsCollection = database.GetCollection<Card>("Cards");
             var updateBuilder = Builders<User>.Update;
-            switch (lastMessage)
+            switch (lastMessage) //проверка последнего непрочитанного
             {
                 case string temp when temp.Contains("/help"):
                     currentAction = UserActions.Help;
@@ -171,10 +184,9 @@ namespace DTF_message_bot
                     }
                     break;
             }
-            switch (currentAction)
+            switch (currentAction) //что делаем в зависимости от последнего сообщения
             {
                 case (UserActions.Start):
-                    worker.MarkAsRead(id);
                     if (lastAction == UserActions.Undefined)
                         answer += "Добро пожаловать в бота Блогосферы!\n" +
                             "Для работы необходимо ввести одну из команд бота.\n" +
@@ -185,11 +197,10 @@ namespace DTF_message_bot
                     lastAction = UserActions.Start;
                     break;
                 case (UserActions.Help):
-                    worker.MarkAsRead(id);
                     answer += "Текущий список команд:\n" +
                         "/help - вызов справки\n" +
-                        "/repost - отправить запрос на репост\n" +
-                        "/card - в процессе";
+                        "/repost - отправить запрос на репост\n"/* +
+                        "/card - в процессе"*/;
                     if(isAdmin)
                         answer += "\nРасширенный список команд:\n" +
                         "/getRequests - получить список запросов на репост\n"/* +
@@ -198,7 +209,6 @@ namespace DTF_message_bot
                     lastAction = UserActions.Help;
                     break;
                 case (UserActions.RequestRepost):
-                    worker.MarkAsRead(id);
                     if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= /*60480*/0)
                     {
                         lastAction = UserActions.RequestRepost;
@@ -211,12 +221,10 @@ namespace DTF_message_bot
                     }
                     break;
                 case (UserActions.RequestAddCard):
-                    worker.MarkAsRead(id);
                     answer += "Введите описание вашего блога. Постарайтесь ограничиться 1000 символов.";
                     lastAction = UserActions.RequestAddCard;
                     break;
                 case (UserActions.TaskCompleted):
-                    worker.MarkAsRead(id);
                     answer += "Данные записаны и отправлены на проверку. ";
                     lastAction = UserActions.Start;
                     break;
@@ -245,7 +253,6 @@ namespace DTF_message_bot
                     lastAction = UserActions.TaskCompleted;
                     break;
                 default:
-                    worker.MarkAsRead(id);
                     if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
                         answer+="Необходимо ввести команду. ";
                     /*if (lastAction == UserActions.RequestAddCard_links)
@@ -256,10 +263,13 @@ namespace DTF_message_bot
             }
             var update = updateBuilder.Set("lastMessageTime", lastMessageTime).Set("lastMessage", lastMessage).Set("lastAction", lastAction);
             UpdateUserField(database.GetCollection<User>("Users"), update);
-            if (answer!="") worker.AnswerUser(id, answer);
+            return answer;
         }
     }
-
+    /*
+     * коллекция для состояний абонента
+     * чисто ради визуального удобства
+     */
     public enum UserActions
     {
         Undefined = -1,

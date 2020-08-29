@@ -65,23 +65,20 @@ namespace DTF_message_bot
 
         private string ResolveAbsolutePath(string relativePath) => Path.Combine(_stateDir, relativePath);
 
-        private async Task CreateUser(User user, IMongoCollection<User> UserCollection)
+        private async Task CreateUser(User user, IMongoCollection<User> UserCollection) //создание нового пользователя в бд
         {
-            //await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
             await UserCollection.InsertOneAsync(user);
         }
 
-        private async Task UpdateUser(User user, IMongoCollection<User> UserCollection)
+        private async Task UpdateUser(User user, IMongoCollection<User> UserCollection) //обновление данных пользователя в бд
         {
             var filter = Builders<User>.Filter.Eq("id", user.id);
-            //await File.WriteAllTextAsync(ResolveAbsolutePath("users/" + user.id + ".json"), JsonSerializer.Serialize(user));
             await UserCollection.ReplaceOneAsync(filter, user, new ReplaceOptions { IsUpsert = true });
         }
 
-        private async Task<User> LoadUser(string id, IMongoCollection<User> UserCollection)
+        private async Task<User> LoadUser(string id, IMongoCollection<User> UserCollection) //ищет в бд и отдаёт данные подключившегося пользователя
         {
             var filter = Builders<User>.Filter.Eq("id", id);
-            //return JsonSerializer.Deserialize<User>(await File.ReadAllTextAsync(ResolveAbsolutePath("users/" + id + ".json")));
             var result = await UserCollection.Find(filter).ToListAsync();
             if (result.Count > 1) _logger.LogInformation("Что за хуйня? Почему больше одного ID?");
             return result.First();
@@ -102,19 +99,23 @@ namespace DTF_message_bot
                 Directory.CreateDirectory(dir);
             }
         }
-
+        /*
+         * Рабочий цикл бота
+         * Здесь инициируется прослушка сокетов и, если сокеты как обычно лежат, спам запросами
+         * а также вызов логики самого бота
+         */
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Бот для мессенджера Очобы\nСделано долбоёбом Neko Natum");
-            _logger.LogInformation("Поiхалi");
+            _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
 
             EnsureUsersDirectoryExists();
             // TODO вынести куда-нибудь это нахуй или сделать кошерней
+
             var client = new MongoClient(_mongoConnectionString);
             var db = client.GetDatabase("messagebot");
             var usersCollection = db.GetCollection<User>("Users");
 
-            _logger.LogInformation("Знакомых пользователей: {0}", await usersCollection.EstimatedDocumentCountAsync());
+            _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
 
             List<User> activeUsers = new List<User>();
             do
@@ -144,12 +145,12 @@ namespace DTF_message_bot
                                         isAdmin = false
                                     });
                                     await CreateUser(activeUsers.Last(), usersCollection);
-                                    _logger.LogInformation("Создан новый пользователь с id = {0}", chan.id);
+                                    _logger.LogInformation("New user with id = {0} was created", chan.id);
                                 }
                                 else
                                 {
                                     activeUsers.Add(await LoadUser(chan.id, usersCollection));
-                                    _logger.LogInformation("Подключился пользователь с id = {0}", chan.id);
+                                    _logger.LogInformation("Connection of user with id = {0}", chan.id);
                                 }
                                 currentActive = activeUsers.Count - 1;
                             }
@@ -158,10 +159,9 @@ namespace DTF_message_bot
                                 currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                             }
                             activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            //_logger.LogInformation(chan.lastMessage.text);
-                            //_logger.LogInformation(activeUsers.ElementAt(currentActive).lastMessage);
-                            activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                            //await UpdateUser(activeUsers.ElementAt(currentActive), UsersCollection); //хз насколько правильно долбить базу после каждого чиха, но пусть будет
+                            _osnova.MarkAsRead(chan.id);
+                            string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                            if (answer != "") _osnova.AnswerUser(chan.id, answer);
                         }
                     }
                 }
@@ -171,7 +171,7 @@ namespace DTF_message_bot
                 }
                 else if (_osnova.LastStatus == -1)
                 {
-                    _logger.LogError("Произошла ошибка сети, бот будет остановлен");
+                    _logger.LogError("Network error. Shutdown.");
                 }
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);

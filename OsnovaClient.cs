@@ -8,6 +8,10 @@ using Newtonsoft.Json;
 
 namespace DTF_message_bot
 {
+    /*
+     * Реализация запросов по API Очобы
+     * Все запросы GET/POST так или иначе добавлять сюда
+     */
     class OsnovaClient
     {
         private readonly HttpClient client;
@@ -98,7 +102,7 @@ namespace DTF_message_bot
             return RawGET(client, "locate?url="+link).Result.Contains("\"author\":{\"id\":"+id+",");
         }
 
-        public string GetArticleID(string link)
+        public string GetArticleID(string link) //получение идентификатора статьи
         {
             var request = JsonConvert.DeserializeObject<dynamic>(RawGET(client, "locate?url=" + link).Result);
             return (string)request.result.data.id;
