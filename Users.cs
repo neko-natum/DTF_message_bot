@@ -37,6 +37,11 @@ namespace DTF_message_bot
             lastMessageTime = chan.lastMessage.dtCreated;
             lastMessage = chan.lastMessage.text;
         }
+        private void UpdateUserField(IMongoCollection<User> UsersCollection, UpdateDefinition<User> update)
+        {
+            var filter = Builders<User>.Filter.Eq("id", id);
+            UsersCollection.UpdateOne(filter, update);
+        }
 
         public void Actions(OsnovaClient worker, IMongoDatabase database)
         {
@@ -45,6 +50,7 @@ namespace DTF_message_bot
             var RequestsCollection = database.GetCollection<Request>("Requests");
             var builder = Builders<Request>.Filter;
             var CardsCollection = database.GetCollection<Card>("Cards");
+            var updateBuilder = Builders<User>.Update;
             switch (lastMessage)
             {
                 case string temp when temp.Contains("/help"):
@@ -107,7 +113,7 @@ namespace DTF_message_bot
                             {
                                 RequestsCollection.InsertOneAsync(new Request() 
                                 {
-                                    id = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds.GetHashCode().ToString(), //не ржать, меня реально плохо с фантазией
+                                    id = worker.GetArticleID(lastMessage),
                                     user_id = id,
                                     link = lastMessage,
                                     type = "repost",
@@ -186,9 +192,9 @@ namespace DTF_message_bot
                         "/card - в процессе";
                     if(isAdmin)
                         answer += "\nРасширенный список команд:\n" +
-                        "/getRequests - получить список запросов на репост\n" +
+                        "/getRequests - получить список запросов на репост\n"/* +
                         "/approve %ссылка на пост% - отметить запрос как одобренный\n" +
-                        "/reject %ссылка на пост% - отметить запрос как отклонённый";
+                        "/reject %ссылка на пост% - отметить запрос как отклонённый"*/;
                     lastAction = UserActions.Help;
                     break;
                 case (UserActions.RequestRepost):
@@ -235,6 +241,7 @@ namespace DTF_message_bot
                         links = links,
                         tags = tags
                     });
+                    UpdateUserField(database.GetCollection<User>("Users"), updateBuilder.Set("Description", Description).Set("links", links).Set("tags", tags));
                     lastAction = UserActions.TaskCompleted;
                     break;
                 default:
@@ -247,7 +254,9 @@ namespace DTF_message_bot
                     }*/
                     break;
             }
-            if(answer!="") worker.AnswerUser(id, answer);
+            var update = updateBuilder.Set("lastMessageTime", lastMessageTime).Set("lastMessage", lastMessage).Set("lastAction", lastAction);
+            UpdateUserField(database.GetCollection<User>("Users"), update);
+            if (answer!="") worker.AnswerUser(id, answer);
         }
     }
 

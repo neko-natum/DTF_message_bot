@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Net.Http;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace DTF_message_bot
 {
@@ -98,9 +98,15 @@ namespace DTF_message_bot
             return RawGET(client, "locate?url="+link).Result.Contains("\"author\":{\"id\":"+id+",");
         }
 
+        public string GetArticleID(string link)
+        {
+            var request = JsonConvert.DeserializeObject<dynamic>(RawGET(client, "locate?url=" + link).Result);
+            return (string)request.result.data.id;
+        }
+
         public MessageData RequestChannelsData() //Запрашивает информацию о входящих
         {
-            return JsonSerializer.Deserialize<MessageData>(RawGET(client, "m/channels").Result);
+            return JsonConvert.DeserializeObject<MessageData>(RawGET(client, "m/channels").Result);
         }
     }
 }
