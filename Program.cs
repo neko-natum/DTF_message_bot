@@ -120,9 +120,11 @@ namespace DTF_message_bot
             List<User> activeUsers = new List<User>();
             do
             {
+                //_logger.LogInformation("Enter cycle");
                 _osnova.Listen();
                 if (_osnova.LastStatus > 0)
                 {
+                    //_logger.LogInformation("Enter read");
                     var data = _osnova.RequestChannelsData();
                     foreach (Channels chan in data.result.channels)
                     {
