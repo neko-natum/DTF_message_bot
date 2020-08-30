@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Http;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using SocketIOClient;
 
 namespace DTF_message_bot
 {
@@ -16,6 +17,7 @@ namespace DTF_message_bot
     {
         private readonly HttpClient clientApi;
         private readonly HttpClient clientRaw;
+        private SocketIO clientSocket;
         public int LastStatus;
         public string LastResult;
         public string ID;
@@ -29,22 +31,32 @@ namespace DTF_message_bot
             clientRaw = new HttpClient();
             clientApi.DefaultRequestHeaders.Add("X-Device-Token", options.Token);
             clientRaw.DefaultRequestHeaders.Add("Cookie", "osnova-remember="+options.osnova_remember+"; osnova-aid="+options.osnova_aid);
-            //client.DefaultRequestHeaders.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-            //client.DefaultRequestHeaders.Add("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9");
-            //client.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate, br");
-            //client.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9");
-            //client.DefaultRequestHeaders.Add("cache-control", "no-cache");
-            //client.DefaultRequestHeaders.Add("pragma", "no-cache");
-            //client.DefaultRequestHeaders.Add("referer", "https://dtf.ru/");
             clientRaw.DefaultRequestHeaders.Add("user-agent", "Mozilla/5444.0");
-            //client.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
-            //client.DefaultRequestHeaders.Add("sec-fetch-mode", "cors");
-            //client.DefaultRequestHeaders.Add("sec-fetch-site", "same-origin");
             clientRaw.DefaultRequestHeaders.Add("x-this-is-csrf", "THIS IS SPARTA!");
             ID = options.SelfID;
             UpdateMHash();
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
+            clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
+        }
 
+        private static async Task SocketListener(OsnovaClient osnova)
+        {
+            osnova.clientSocket.OnConnected += async (sender, e) =>
+             {
+                  await osnova.clientSocket.EmitAsync("subscribe", new
+                  {
+                      channel = "m:" + osnova.mHash
+                  }, "subscribe");
+             };
+            osnova.clientSocket.On("event", response =>
+            {
+                string res = response.GetValue<string>();
+                if (res.Contains("\"action\":\"addMessage\"") && !res.Contains("\"author\":{\"id\":\"" + osnova.ID + "\""))
+                {
+                    //здесь должна быть записб в отдельный список подходящих условию тасков
+                };
+            });
+            await osnova.clientSocket.ConnectAsync();
         }
 
         private static async Task<string> RawGET(HttpClient client, string query) //Отправка GET-запроса с полученим чистого json
