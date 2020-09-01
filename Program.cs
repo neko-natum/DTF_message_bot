@@ -124,7 +124,7 @@ namespace DTF_message_bot
                     int currentActive;
                     if (_osnova.socketTasks.TryDequeue(out var queuedUser))
                     {
-                        _logger.LogInformation("I'm using sockets like a big boy");
+                        //_logger.LogInformation("I'm using sockets like a big boy");
                         if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
                             if(!IsUserExists(queuedUser.id, usersCollection))

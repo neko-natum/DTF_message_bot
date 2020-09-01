@@ -24,6 +24,8 @@ namespace DTF_message_bot
         public int LastStatus;
         public string LastResult;
         public string ID;
+        public string possessionID;
+        public string possessionHash;
         public string mHash;
         public int mHashLifetime;
         public bool isConnected;
@@ -41,8 +43,15 @@ namespace DTF_message_bot
             clientRaw.DefaultRequestHeaders.Add("user-agent", "Mozilla/5444.0");
             clientRaw.DefaultRequestHeaders.Add("x-this-is-csrf", "THIS IS SPARTA!");
             ID = options.SelfID;
+            possessionID = options.PossessionID;
             UpdateMHash();
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
+            if (possessionID != null)
+            {
+                possessionHash = Possession();
+                if(possessionHash!=null)
+                    clientApi.DefaultRequestHeaders.Add("X-Device-Possession-Token", possessionHash);
+            }
             //clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
             //await StartAsync();
         }
@@ -59,16 +68,23 @@ namespace DTF_message_bot
             clientSocket.On("event", response =>
             {
                 var data = response.GetValue<dynamic>();
-                if (((string)data.channel == "m" + mHash) && ((string)data.data.author.id != ID) && ((string)data.data.type == "addMessage"))
+                //string temp1 = (string)data.channel;
+                //string temp2 = (string)data.data.author.id;
+                //string temp3 = (string)data.data.type;
+                if (((string)data.channel == "m:"+mHash) && ((string)data.data.action == "addMessage"))
                 {
-                    socketTasks.Enqueue(new User
+                    //string temp2 = (string)data.data.lastMessage.author.id;
+                    if ((string)data.data.message.author.id != ID)
                     {
-                        id = (string)data.data.channel.id,
-                        username = (string)data.data.author.title,
-                        imagePath = (string)data.data.author.picture,
-                        lastMessageTime = (double)data.data.dtCreated,
-                        lastMessage = (string)data.data.message.text
-                    });
+                        socketTasks.Enqueue(new User
+                        {
+                            id = (string)data.data.message.author.id,
+                            username = (string)data.data.message.author.title,
+                            imagePath = (string)data.data.message.author.picture,
+                            lastMessageTime = (double)data.data.message.dtCreated,
+                            lastMessage = (string)data.data.message.text
+                        });
+                    }
                 }
                 //_logger.LogInformation("Received event: " + (string)data.data.type);
             });
@@ -89,26 +105,6 @@ namespace DTF_message_bot
                 await clientSocket.DisconnectAsync();
             }
         }
-
-        /*private static async Task SocketListener(OsnovaClient osnova)
-        {
-            osnova.clientSocket.OnConnected += async (sender, e) =>
-             {
-                  await osnova.clientSocket.EmitAsync("subscribe", new
-                  {
-                      channel = "m:" + osnova.mHash
-                  }, "subscribe");
-             };
-            osnova.clientSocket.On("event", response =>
-            {
-                string res = response.GetValue<string>();
-                if (res.Contains("\"action\":\"addMessage\"") && !res.Contains("\"author\":{\"id\":\"" + osnova.ID + "\""))
-                {
-                    //здесь должна быть записб в отдельный список подходящих условию тасков
-                };
-            });
-            await osnova.clientSocket.ConnectAsync();
-        }*/
 
         private static async Task<string> RawGET(HttpClient client, string query) //Отправка GET-запроса с полученим чистого json
         {
@@ -135,6 +131,24 @@ namespace DTF_message_bot
                 Console.WriteLine(ex);
                 return "error";
             }
+        }
+
+        private string Possession()
+        {
+            var request = JsonConvert.DeserializeObject<dynamic>(RawGET(clientApi, "locate?url=" + possessionID).Result);
+            var requestParameters = new[]
+            {
+                new KeyValuePair<string,string>("id", (string)request.result.data.id)
+            };
+            var content = new MultipartFormDataContent();
+            foreach (var keyValuePair in requestParameters)
+            {
+                content.Add(new StringContent(keyValuePair.Value),
+                    String.Format("\"{0}\"", keyValuePair.Key));
+            }
+            var possQuery = JsonConvert.DeserializeObject<dynamic>(RawPOST(clientApi, "auth/possess", content).Result);
+            string temp = (string)possQuery;
+            return temp;
         }
 
         private void UpdateMHash()

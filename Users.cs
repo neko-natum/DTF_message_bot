@@ -78,7 +78,7 @@ namespace DTF_message_bot
                 case string temp when temp.Contains("/getRequests"):
                     if (isAdmin)
                     {
-                        var filter = builder.Eq("isApproved", false) & builder.Eq("isRejected", false);
+                        var filter = builder.Eq("isApproved", false);
                         var result = RequestsCollection.Find(filter).ToList();
                         if (!result.Any())
                         {
