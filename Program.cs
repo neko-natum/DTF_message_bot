@@ -115,7 +115,7 @@ namespace DTF_message_bot
             var usersCollection = db.GetCollection<User>("Users");
 
             _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
-
+            await _osnova.StartAsync();
             List<User> activeUsers = new List<User>();
             do
             {
@@ -216,6 +216,11 @@ namespace DTF_message_bot
                     {
                         _logger.LogError("Network error. Shutdown.");
                     }
+                }
+                if (_osnova.isError)
+                {
+                    _logger.LogError("Error in sockets");
+                    _osnova.isError = false;
                 }
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);

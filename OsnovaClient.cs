@@ -27,6 +27,7 @@ namespace DTF_message_bot
         public string mHash;
         public int mHashLifetime;
         public bool isConnected;
+        public bool isError;
         public ConcurrentQueue<User> socketTasks;
 
         public OsnovaClient(IOptions<OsnovaOptions> optionsAccessor)
@@ -43,7 +44,7 @@ namespace DTF_message_bot
             UpdateMHash();
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
             //clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
-            StartAsync();
+            //await StartAsync();
         }
 
         public async Task StartAsync()
@@ -51,7 +52,7 @@ namespace DTF_message_bot
             clientSocket = new SocketIO("wss://ws-sio.dtf.ru/?EIO=3&transport=websocket");
             clientSocket.OnConnected += _socketIoClient_OnConnected;
             clientSocket.OnDisconnected += (_, e) => isConnected = false;
-            //clientSocket.OnError += (_, e) => _logger.LogError("Error: " + e);
+            clientSocket.OnError += (_, e) => isError = true;
             clientSocket.OnReconnecting += (_, e) => UpdateMHash();
             //clientSocket.OnPing += (_, e) => _logger.LogInformation("Ping");
             //clientSocket.OnPong += (_, e) => _logger.LogInformation($"Pong in {(int)e.TotalMilliseconds}ms");
@@ -60,7 +61,7 @@ namespace DTF_message_bot
                 var data = response.GetValue<dynamic>();
                 if (((string)data.channel == "m" + mHash) && ((string)data.data.author.id != ID) && ((string)data.data.type == "addMessage"))
                 {
-                    socketTasks.Append(new User
+                    socketTasks.Enqueue(new User
                     {
                         id = (string)data.data.channel.id,
                         username = (string)data.data.author.title,
