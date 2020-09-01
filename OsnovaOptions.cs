@@ -6,9 +6,11 @@
         public string Version { get; set; }
         public string SelfID { get; set; }
         public string PossessionID { get; set; }
+        public int RepostTimeout { get; set; }
         public string Token { get; set; }
         public string osnova_aid { get; set; }
         public string osnova_remember { get; set; }
+        public string osnova_possession { get; set; }
     }
 }
 

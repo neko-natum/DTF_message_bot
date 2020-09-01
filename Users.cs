@@ -78,7 +78,7 @@ namespace DTF_message_bot
                 case string temp when temp.Contains("/getRequests"):
                     if (isAdmin)
                     {
-                        var filter = builder.Eq("isApproved", false);
+                        var filter = builder.Eq("isSeen", false);
                         var result = RequestsCollection.Find(filter).ToList();
                         if (!result.Any())
                         {
@@ -95,11 +95,21 @@ namespace DTF_message_bot
                     }
                     lastAction = currentAction = UserActions.Neutral;
                     break;
+                case string temp when temp.Contains("/markSeen"):
+                    string[] splitId = temp.Split(" ");
+                    var result1 = RequestsCollection.Find(builder.Eq("id", splitId[1])).ToList();
+                    RequestsCollection.UpdateOne(Builders<Request>.Filter.Eq("id", result1.First().id), Builders<Request>.Update.Set("isSeen",true));
+                    break;
                 case string temp when temp.Contains("/end"):
                     if (lastAction == UserActions.RequestAddCard_links)
                         currentAction = UserActions.RequestAddCard_tags;
                     else if (lastAction == UserActions.RequestAddCard_tags)
                         currentAction = UserActions.RequestAddCard_finish;
+                    else if (lastAction == UserActions.RequestRepost)
+                    {
+                        currentAction = UserActions.Neutral;
+                        answer += "Операция отменена";
+                    }
                     else
                     {
                         answer += "Нечего завершать";
@@ -134,6 +144,7 @@ namespace DTF_message_bot
                                 }
                                 );
                                 currentAction = UserActions.TaskCompleted;
+                                worker.AnswerUser(worker.possessionHash!=null ? worker.possessionID : worker.ID, "Новый входящий реквест: "+lastMessage+"\n");
                                 lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                                 break;
                             }
@@ -199,24 +210,24 @@ namespace DTF_message_bot
                 case (UserActions.Help):
                     answer += "Текущий список команд:\n" +
                         "/help - вызов справки\n" +
-                        "/repost - отправить запрос на репост\n"/* +
+                        "/repost - отправить запрос на репост"/* +
                         "/card - в процессе"*/;
                     if(isAdmin)
                         answer += "\nРасширенный список команд:\n" +
-                        "/getRequests - получить список запросов на репост\n"/* +
-                        "/approve %ссылка на пост% - отметить запрос как одобренный\n" +
+                        "/getRequests - получить список запросов на репост\n" +
+                        "/markSeen %id поста% - отметить запрос как просмотренный"/* +
                         "/reject %ссылка на пост% - отметить запрос как отклонённый"*/;
                     lastAction = UserActions.Help;
                     break;
                 case (UserActions.RequestRepost):
-                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= /*60480*/0)
+                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= worker.RepostTimeout)
                     {
                         lastAction = UserActions.RequestRepost;
-                        answer += "Отправьте ссылку на статью для репоста. ";
+                        answer += "Отправьте ссылку на статью для репоста. Для отмены команды отправьте /end";
                     }
                     else
                     {
-                        answer += "Не прошло достаточно времени с момента последнего запроса. На данный момент стоит ограничение в 1 запрос в неделю. ";
+                        answer += "Не прошло достаточно времени с момента последнего запроса. На данный момент стоит ограничение в 1 запрос в день. ";
                         lastAction = UserActions.Start;
                     }
                     break;
@@ -294,7 +305,7 @@ namespace DTF_message_bot
         public string type { get; set; }
         public string link { get; set; }
         public DateTime dateCreation { get; set; }
-        public double isApproved { get; set; }
+        public double isSeen { get; set; }
     }
     class Card
     {

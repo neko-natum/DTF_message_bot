@@ -28,6 +28,7 @@ namespace DTF_message_bot
         public string possessionHash;
         public string mHash;
         public int mHashLifetime;
+        public int RepostTimeout;
         public bool isConnected;
         public bool isError;
         public ConcurrentQueue<User> socketTasks;
@@ -39,12 +40,11 @@ namespace DTF_message_bot
             clientApi = new HttpClient();
             clientRaw = new HttpClient();
             clientApi.DefaultRequestHeaders.Add("X-Device-Token", options.Token);
-            clientRaw.DefaultRequestHeaders.Add("Cookie", "osnova-remember="+options.osnova_remember+"; osnova-aid="+options.osnova_aid);
+            clientRaw.DefaultRequestHeaders.Add("Cookie", "osnova-remember="+options.osnova_remember+"; osnova-aid="+options.osnova_aid+ "; osnova-possession=" + options.osnova_possession);
             clientRaw.DefaultRequestHeaders.Add("user-agent", "Mozilla/5444.0");
             clientRaw.DefaultRequestHeaders.Add("x-this-is-csrf", "THIS IS SPARTA!");
             ID = options.SelfID;
             possessionID = options.PossessionID;
-            UpdateMHash();
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
             if (possessionID != null)
             {
@@ -52,6 +52,9 @@ namespace DTF_message_bot
                 if(possessionHash!=null)
                     clientApi.DefaultRequestHeaders.Add("X-Device-Possession-Token", possessionHash);
             }
+            UpdateMHash();
+            RepostTimeout = options.RepostTimeout;
+
             //clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
             //await StartAsync();
         }
@@ -74,7 +77,7 @@ namespace DTF_message_bot
                 if (((string)data.channel == "m:"+mHash) && ((string)data.data.action == "addMessage"))
                 {
                     //string temp2 = (string)data.data.lastMessage.author.id;
-                    if ((string)data.data.message.author.id != ID)
+                    if ((string)data.data.message.author.id != ID && (string)data.data.message.author.id != possessionID)
                     {
                         socketTasks.Enqueue(new User
                         {
@@ -132,6 +135,19 @@ namespace DTF_message_bot
                 return "error";
             }
         }
+        private static async Task<string> RawPOSTHeaders(HttpClient client, string query, MultipartFormDataContent data) //Отправка POST-запроса с полученим чистого json
+        {
+            try
+            {
+                var response = await client.PostAsync(query, data);
+                return response.Headers.GetValues("x-device-possession-token").First().ToString();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                return "error";
+            }
+        }
 
         private string Possession()
         {
@@ -146,9 +162,8 @@ namespace DTF_message_bot
                 content.Add(new StringContent(keyValuePair.Value),
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
-            var possQuery = JsonConvert.DeserializeObject<dynamic>(RawPOST(clientApi, "auth/possess", content).Result);
-            string temp = (string)possQuery;
-            return temp;
+            possessionID = (string)request.result.data.id;
+            return RawPOSTHeaders(clientApi, "auth/possess", content).Result;
         }
 
         private void UpdateMHash()
