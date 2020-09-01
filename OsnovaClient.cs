@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
@@ -79,7 +79,7 @@ namespace DTF_message_bot
         {
             //_logger.LogInformation("Connected");
             isConnected = true;
-            await clientSocket.EmitAsync("subscribe", new { channel = "m"+mHash });
+            await clientSocket.EmitAsync("subscribe", new { channel = "m:"+mHash });
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
