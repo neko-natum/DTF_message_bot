@@ -6,6 +6,9 @@ using System.Net.Http;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SocketIOClient;
+using System.Threading;
+using System.Text;
+using System.Collections.Concurrent;
 
 namespace DTF_message_bot
 {
@@ -22,11 +25,14 @@ namespace DTF_message_bot
         public string LastResult;
         public string ID;
         public string mHash;
-        public int mHashLifetime; 
+        public int mHashLifetime;
+        public bool isConnected;
+        public ConcurrentQueue<User> socketTasks;
 
         public OsnovaClient(IOptions<OsnovaOptions> optionsAccessor)
         {
             var options = optionsAccessor.Value;
+            socketTasks = new ConcurrentQueue<User>();
             clientApi = new HttpClient();
             clientRaw = new HttpClient();
             clientApi.DefaultRequestHeaders.Add("X-Device-Token", options.Token);
@@ -36,10 +42,54 @@ namespace DTF_message_bot
             ID = options.SelfID;
             UpdateMHash();
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
-            clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
+            //clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
+            StartAsync();
         }
 
-        private static async Task SocketListener(OsnovaClient osnova)
+        public async Task StartAsync()
+        {
+            clientSocket = new SocketIO("wss://ws-sio.dtf.ru/?EIO=3&transport=websocket");
+            clientSocket.OnConnected += _socketIoClient_OnConnected;
+            clientSocket.OnDisconnected += (_, e) => isConnected = false;
+            //clientSocket.OnError += (_, e) => _logger.LogError("Error: " + e);
+            clientSocket.OnReconnecting += (_, e) => UpdateMHash();
+            //clientSocket.OnPing += (_, e) => _logger.LogInformation("Ping");
+            //clientSocket.OnPong += (_, e) => _logger.LogInformation($"Pong in {(int)e.TotalMilliseconds}ms");
+            clientSocket.On("event", response =>
+            {
+                var data = response.GetValue<dynamic>();
+                if (((string)data.channel == "m" + mHash) && ((string)data.data.author.id != ID) && ((string)data.data.type == "addMessage"))
+                {
+                    socketTasks.Append(new User
+                    {
+                        id = (string)data.data.channel.id,
+                        username = (string)data.data.author.title,
+                        imagePath = (string)data.data.author.picture,
+                        lastMessageTime = (double)data.data.dtCreated,
+                        lastMessage = (string)data.data.message.text
+                    });
+                }
+                //_logger.LogInformation("Received event: " + (string)data.data.type);
+            });
+            await clientSocket.ConnectAsync();
+        }
+
+        private async void _socketIoClient_OnConnected(object sender, EventArgs e)
+        {
+            //_logger.LogInformation("Connected");
+            isConnected = true;
+            await clientSocket.EmitAsync("subscribe", new { channel = "m"+mHash });
+        }
+
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            if (clientSocket != null)
+            {
+                await clientSocket.DisconnectAsync();
+            }
+        }
+
+        /*private static async Task SocketListener(OsnovaClient osnova)
         {
             osnova.clientSocket.OnConnected += async (sender, e) =>
              {
@@ -57,7 +107,7 @@ namespace DTF_message_bot
                 };
             });
             await osnova.clientSocket.ConnectAsync();
-        }
+        }*/
 
         private static async Task<string> RawGET(HttpClient client, string query) //Отправка GET-запроса с полученим чистого json
         {

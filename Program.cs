@@ -36,7 +36,6 @@ namespace DTF_message_bot
                     services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
                     services.Configure<MongoOptions>(ctx.Configuration.GetSection("Mongo"));
                     services.AddTransient<OsnovaClient>();
-                    services.AddSingleton<DtfMessageBotService>();
                     services.AddHostedService<DtfMessageBotService>();
                 })
                 .RunConsoleAsync();
@@ -120,60 +119,103 @@ namespace DTF_message_bot
             List<User> activeUsers = new List<User>();
             do
             {
-                //_logger.LogInformation("Enter cycle");
-                _osnova.Listen();
-                if (_osnova.LastStatus > 0)
+                if (_osnova.isConnected)
                 {
-                    //_logger.LogInformation("Enter read");
-                    var data = _osnova.RequestChannelsData();
-                    foreach (Channels chan in data.result.channels)
+                    int currentActive;
+                    if (_osnova.socketTasks.TryDequeue(out var queuedUser))
                     {
-                        if (chan.unreadCount != 0)
+                        _logger.LogInformation("I'm using sockets like a big boy");
+                        if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
-                            int currentActive;
-                            if (!activeUsers.Exists(x => x.id == chan.id))
+                            if(!IsUserExists(queuedUser.id, usersCollection))
                             {
-                                if (!IsUserExists(chan.id, usersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
+                                activeUsers.Add(new User()
                                 {
-                                    activeUsers.Add(new User()
-                                    {
-                                        id = chan.id,
-                                        username = chan.lastMessage.author.title,
-                                        imagePath = chan.lastMessage.author.picture,
-                                        lastMessageTime = chan.lastMessage.dtCreated,
-                                        lastMessage = chan.lastMessage.text,
-                                        lastAction = UserActions.Undefined,
-                                        isCardExists = false,
-                                        isAdmin = false
-                                    });
-                                    await CreateUser(activeUsers.Last(), usersCollection);
-                                    _logger.LogInformation("New user with id = {0} was created", chan.id);
-                                }
-                                else
-                                {
-                                    activeUsers.Add(await LoadUser(chan.id, usersCollection));
-                                    _logger.LogInformation("Connection of user with id = {0}", chan.id);
-                                }
-                                currentActive = activeUsers.Count - 1;
+                                    id = queuedUser.id,
+                                    username = queuedUser.username,
+                                    imagePath = queuedUser.imagePath,
+                                    lastMessageTime = queuedUser.lastMessageTime,
+                                    lastMessage = queuedUser.lastMessage,
+                                    lastAction = UserActions.Undefined,
+                                    isCardExists = false,
+                                    isAdmin = false
+                                });
+                                await CreateUser(activeUsers.Last(), usersCollection);
+                                _logger.LogInformation("New user with id = {0} was created", queuedUser.id);
                             }
                             else
                             {
-                                currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
+                                activeUsers.Add(await LoadUser(queuedUser.id, usersCollection));
+                                _logger.LogInformation("Connection of user with id = {0}", queuedUser.id);
                             }
-                            activeUsers.ElementAt(currentActive).UpdateUser(chan);
-                            _osnova.MarkAsRead(chan.id);
-                            string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                            if (answer != "") _osnova.AnswerUser(chan.id, answer);
+                            currentActive = activeUsers.Count - 1;
                         }
+                        else
+                        {
+                            currentActive = activeUsers.FindIndex(x => string.Equals(x.id, queuedUser.id));
+                        }
+                        activeUsers.ElementAt(currentActive).UpdateUser(queuedUser.id, queuedUser.username, queuedUser.imagePath, queuedUser.lastMessageTime, queuedUser.lastMessage);
+                        _osnova.MarkAsRead(queuedUser.id);
+                        string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                        if (answer != "") _osnova.AnswerUser(queuedUser.id, answer);
                     }
                 }
-                else if (_osnova.LastStatus == 0)
+                else
                 {
-                    await Task.Delay(1000);
-                }
-                else if (_osnova.LastStatus == -1)
-                {
-                    _logger.LogError("Network error. Shutdown.");
+                    _osnova.Listen();
+                    if (_osnova.LastStatus > 0)
+                    {
+                        //_logger.LogInformation("Enter read");
+                        var data = _osnova.RequestChannelsData();
+                        foreach (Channels chan in data.result.channels)
+                        {
+                            if (chan.unreadCount != 0)
+                            {
+                                int currentActive;
+                                if (!activeUsers.Exists(x => x.id == chan.id))
+                                {
+                                    if (!IsUserExists(chan.id, usersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
+                                    {
+                                        activeUsers.Add(new User()
+                                        {
+                                            id = chan.id,
+                                            username = chan.lastMessage.author.title,
+                                            imagePath = chan.lastMessage.author.picture,
+                                            lastMessageTime = chan.lastMessage.dtCreated,
+                                            lastMessage = chan.lastMessage.text,
+                                            lastAction = UserActions.Undefined,
+                                            isCardExists = false,
+                                            isAdmin = false
+                                        });
+                                        await CreateUser(activeUsers.Last(), usersCollection);
+                                        _logger.LogInformation("New user with id = {0} was created", chan.id);
+                                    }
+                                    else
+                                    {
+                                        activeUsers.Add(await LoadUser(chan.id, usersCollection));
+                                        _logger.LogInformation("Connection of user with id = {0}", chan.id);
+                                    }
+                                    currentActive = activeUsers.Count - 1;
+                                }
+                                else
+                                {
+                                    currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
+                                }
+                                activeUsers.ElementAt(currentActive).UpdateUser(chan.id, chan.lastMessage.author.title, chan.lastMessage.author.picture, chan.lastMessage.dtCreated, chan.lastMessage.text);
+                                _osnova.MarkAsRead(chan.id);
+                                string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                                if (answer != "") _osnova.AnswerUser(chan.id, answer);
+                            }
+                        }
+                    }
+                    else if (_osnova.LastStatus == 0)
+                    {
+                        await Task.Delay(1000);
+                    }
+                    else if (_osnova.LastStatus == -1)
+                    {
+                        _logger.LogError("Network error. Shutdown.");
+                    }
                 }
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);

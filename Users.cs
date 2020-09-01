@@ -35,13 +35,13 @@ namespace DTF_message_bot
         /*
          * не помню зачем, но на всякий обновляет данные для новых абонентов
          */
-        public void UpdateUser(Channels chan)
+        public void UpdateUser(string newId, string newUsername, string newImage, double newMessageTime, string newMessage)
         {
-            id = chan.id;
-            username = chan.lastMessage.author.title;
-            imagePath = chan.lastMessage.author.picture;
-            lastMessageTime = chan.lastMessage.dtCreated;
-            lastMessage = chan.lastMessage.text;
+            id = newId;
+            username = newUsername;
+            imagePath = newImage;
+            lastMessageTime = newMessageTime;
+            lastMessage = newMessage;
         }
         /*
          * обновление конкретных полей в таблице пользователей
@@ -295,7 +295,6 @@ namespace DTF_message_bot
         public string link { get; set; }
         public DateTime dateCreation { get; set; }
         public double isApproved { get; set; }
-        public double isRejected { get; set; }
     }
     class Card
     {
