@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using Polly;
+using System;
 
 namespace DTF_message_bot
 {
@@ -108,11 +110,27 @@ namespace DTF_message_bot
             _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
             bool firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
             EnsureUsersDirectoryExists();
-            var client = new MongoClient(_mongoConnectionString);
-            var db = client.GetDatabase("messagebot");
-            var usersCollection = db.GetCollection<User>("Users");
 
-            _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
+            _logger.LogDebug("Connecting to MongoDB...");
+            MongoClient client = null;
+            IMongoDatabase db = null;
+            IMongoCollection<User> usersCollection = null;
+            await Policy
+                .Handle<Exception>()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                    onRetry: (ex, timeSpan) => _logger.LogError(ex, $"MongoDB connection failed, waiting {timeSpan.TotalSeconds}s and retrying...")
+                )
+                .ExecuteAsync(async () =>
+                {
+                    client = new MongoClient(_mongoConnectionString);
+                    db = client.GetDatabase("messagebot");
+                    usersCollection = db.GetCollection<User>("Users"); 
+                    _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
+                });
+            _logger.LogDebug("MongoDB connection success.");
+
             await _osnova.StartAsync();
             List<User> activeUsers = new List<User>();
             do
