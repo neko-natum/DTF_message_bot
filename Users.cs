@@ -134,18 +134,26 @@ namespace DTF_message_bot
                             }
                             if (worker.isAuthor(id, lastMessage))
                             {
-                                RequestsCollection.InsertOneAsync(new Request() 
+                                if (RequestsCollection.Find(builder.Eq("id", worker.GetArticleID(lastMessage))).ToList().Any())
                                 {
-                                    id = worker.GetArticleID(lastMessage),
-                                    user_id = id,
-                                    link = lastMessage,
-                                    type = "repost",
-                                    dateCreation = DateTime.UtcNow
+                                    answer += "Вы уже отправляли эту ссылку. ";
+                                    currentAction = UserActions.RequestRepost;
                                 }
-                                );
-                                currentAction = UserActions.TaskCompleted;
-                                worker.AnswerUser(worker.possessionHash!=null ? worker.possessionID : worker.ID, "Новый входящий реквест: "+lastMessage+"\n");
-                                lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+                                else
+                                {
+                                    RequestsCollection.InsertOneAsync(new Request()
+                                    {
+                                        id = worker.GetArticleID(lastMessage),
+                                        user_id = id,
+                                        link = lastMessage,
+                                        type = "repost",
+                                        dateCreation = DateTime.UtcNow
+                                    }
+                                    );
+                                    currentAction = UserActions.TaskCompleted;
+                                    worker.AnswerUser(worker.possessionHash != null ? worker.possessionID : worker.ID, "Новый входящий реквест: " + lastMessage + "\n");
+                                    lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+                                }
                                 break;
                             }
                             else

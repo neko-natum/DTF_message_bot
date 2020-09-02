@@ -71,12 +71,8 @@ namespace DTF_message_bot
             clientSocket.On("event", response =>
             {
                 var data = response.GetValue<dynamic>();
-                //string temp1 = (string)data.channel;
-                //string temp2 = (string)data.data.author.id;
-                //string temp3 = (string)data.data.type;
                 if (((string)data.channel == "m:"+mHash) && ((string)data.data.action == "addMessage"))
                 {
-                    //string temp2 = (string)data.data.lastMessage.author.id;
                     if ((string)data.data.message.author.id != ID && (string)data.data.message.author.id != possessionID)
                     {
                         socketTasks.Enqueue(new User
@@ -89,14 +85,12 @@ namespace DTF_message_bot
                         });
                     }
                 }
-                //_logger.LogInformation("Received event: " + (string)data.data.type);
             });
             await clientSocket.ConnectAsync();
         }
 
         private async void _socketIoClient_OnConnected(object sender, EventArgs e)
         {
-            //_logger.LogInformation("Connected");
             isConnected = true;
             await clientSocket.EmitAsync("subscribe", new { channel = "m:"+mHash });
         }
@@ -197,7 +191,6 @@ namespace DTF_message_bot
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
             LastResult = RawPOST(clientApi, "m/send", content).Result;
-            //Console.WriteLine(result);
             MarkAsRead(chanId);
         }
 

@@ -106,10 +106,8 @@ namespace DTF_message_bot
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
-
+            bool firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
             EnsureUsersDirectoryExists();
-            // TODO вынести куда-нибудь это нахуй или сделать кошерней
-
             var client = new MongoClient(_mongoConnectionString);
             var db = client.GetDatabase("messagebot");
             var usersCollection = db.GetCollection<User>("Users");
@@ -119,7 +117,7 @@ namespace DTF_message_bot
             List<User> activeUsers = new List<User>();
             do
             {
-                if (_osnova.isConnected)
+                if (_osnova.isConnected&&firstRun==false) //работа на сокетах
                 {
                     int currentActive;
                     if (_osnova.socketTasks.TryDequeue(out var queuedUser))
@@ -160,7 +158,7 @@ namespace DTF_message_bot
                         if (answer != "") _osnova.AnswerUser(queuedUser.id, answer);
                     }
                 }
-                else
+                else //работа на прямых запросах
                 {
                     _osnova.Listen();
                     if (_osnova.LastStatus > 0)
@@ -174,7 +172,7 @@ namespace DTF_message_bot
                                 int currentActive;
                                 if (!activeUsers.Exists(x => x.id == chan.id))
                                 {
-                                    if (!IsUserExists(chan.id, usersCollection) /*!File.Exists(ResolveAbsolutePath("users/" + chan.id + ".json"))*/)
+                                    if (!IsUserExists(chan.id, usersCollection))
                                     {
                                         activeUsers.Add(new User()
                                         {
@@ -216,6 +214,7 @@ namespace DTF_message_bot
                     {
                         _logger.LogError("Network error. Shutdown.");
                     }
+                    firstRun = false;
                 }
                 if (_osnova.isError)
                 {
