@@ -109,15 +109,12 @@ namespace DTF_message_bot
 
         private async Task HandleHealthcheckAsync()
         {
-            // silently ignore hc if its not configured properly
-            if (string.IsNullOrWhiteSpace(_hcOptions.HealthcheckUri))
+            if (_hcOptions.HealthchecksEnabled ?? false)
             {
-                return;
-            }
-
-            using (var httpClient = new HttpClient())
-            {
-                await httpClient.GetAsync(_hcOptions.HealthcheckUri);
+                using (var httpClient = new HttpClient())
+                {
+                    await httpClient.GetAsync(_hcOptions.HealthcheckUri);
+                }
             }
         }
 
@@ -163,7 +160,7 @@ namespace DTF_message_bot
                     {
                         //_logger.LogInformation("I'm using sockets like a big boy");
 
-                        if (queuedUser.id == _osnova.ID && queuedUser.lastMessage == _hcOptions.HealthcheckMessage)
+                        if (queuedUser.lastMessage == _hcOptions.HealthcheckMessage)
                         {
                             await HandleHealthcheckAsync();
                             continue;
@@ -215,7 +212,7 @@ namespace DTF_message_bot
                         {
                             if (chan.unreadCount != 0)
                             {
-                                if (chan.id == _osnova.ID && chan.lastMessage.text == _hcOptions.HealthcheckMessage)
+                                if (chan.lastMessage.text == _hcOptions.HealthcheckMessage)
                                 {
                                     await HandleHealthcheckAsync();
                                     continue;
