@@ -17,7 +17,10 @@ namespace DTF_message_bot
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await OnBeforeStartAsync();
+            if (!await OnBeforeStartAsync())
+            {
+                return;
+            }
             _serviceTask = Task.Run(async () =>
             {
                 try
@@ -40,7 +43,7 @@ namespace DTF_message_bot
             await OnAfterStopAsync();
         }
 
-        protected virtual Task OnBeforeStartAsync() => Task.CompletedTask;
+        protected virtual Task<bool> OnBeforeStartAsync() => Task.FromResult(true);
         protected virtual Task OnAfterStartAsync() => Task.CompletedTask;
         protected abstract Task RunServiceAsync(CancellationToken cancellationToken);
         protected virtual Task OnBeforeStopAsync() => Task.CompletedTask;

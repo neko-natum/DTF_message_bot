@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SocketIOClient;
 using System.Threading;
-using System.Text;
 using System.Collections.Concurrent;
 
 namespace DTF_message_bot
