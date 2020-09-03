@@ -9,7 +9,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using Polly;
 using System;
+using System.Net.Http;
 
 namespace DTF_message_bot
 {
@@ -36,8 +38,10 @@ namespace DTF_message_bot
                     services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
                     services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
                     services.Configure<MongoOptions>(ctx.Configuration.GetSection("Mongo"));
+                    services.Configure<HealthchecksOptions>(ctx.Configuration.GetSection("Healthchecks"));
                     services.AddTransient<OsnovaClient>();
                     services.AddHostedService<DtfMessageBotService>();
+                    services.AddHostedService<HealthcheckMessageSenderService>();
                 })
                 .RunConsoleAsync();
         }
@@ -46,6 +50,7 @@ namespace DTF_message_bot
     internal class DtfMessageBotService : ContinuousHostedService
     {
         private readonly OsnovaClient _osnova;
+        private readonly HealthchecksOptions _hcOptions;
         private readonly ILogger<DtfMessageBotService> _logger;
         private readonly string _stateDir;
         private readonly string _mongoConnectionString;
@@ -54,10 +59,12 @@ namespace DTF_message_bot
             OsnovaClient osnova,
             IOptions<PersistentStateOptions> storageOptionsAccessor,
             IOptions<MongoOptions> mongoOptionsAccessor,
+            IOptions<HealthchecksOptions> hcOptionsAccessor,
             ILogger<DtfMessageBotService> logger,
             IHostApplicationLifetime host) : base(host)
         {
             _osnova = osnova;
+            _hcOptions = hcOptionsAccessor.Value;
             _logger = logger;
             _stateDir = storageOptionsAccessor.Value.Directory;
             _mongoConnectionString = mongoOptionsAccessor.Value.ConnectionString;
@@ -99,6 +106,18 @@ namespace DTF_message_bot
                 Directory.CreateDirectory(dir);
             }
         }
+
+        private async Task HandleHealthcheckAsync()
+        {
+            if (_hcOptions.HealthchecksEnabled ?? false)
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    await httpClient.GetAsync(_hcOptions.HealthcheckUri);
+                }
+            }
+        }
+
         /*
          * Рабочий цикл бота
          * Здесь инициируется прослушка сокетов и, если сокеты как обычно лежат, спам запросами
@@ -109,11 +128,27 @@ namespace DTF_message_bot
             _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
             bool firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
             EnsureUsersDirectoryExists();
-            var client = new MongoClient(_mongoConnectionString);
-            var db = client.GetDatabase("messagebot");
-            var usersCollection = db.GetCollection<User>("Users");
 
-            _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
+            _logger.LogDebug("Connecting to MongoDB...");
+            MongoClient client = null;
+            IMongoDatabase db = null;
+            IMongoCollection<User> usersCollection = null;
+            await Policy
+                .Handle<Exception>()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                    onRetry: (ex, timeSpan) => _logger.LogError(ex, $"MongoDB connection failed, waiting {timeSpan.TotalSeconds}s and retrying...")
+                )
+                .ExecuteAsync(async () =>
+                {
+                    client = new MongoClient(_mongoConnectionString);
+                    db = client.GetDatabase("messagebot");
+                    usersCollection = db.GetCollection<User>("Users"); 
+                    _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
+                });
+            _logger.LogDebug("MongoDB connection success.");
+
             await _osnova.StartAsync();
             List<User> activeUsers = new List<User>();
             do
@@ -123,7 +158,12 @@ namespace DTF_message_bot
                     int currentActive;
                     if (_osnova.socketTasks.TryDequeue(out var queuedUser))
                     {
-                        //TODO вынести это в отдельную функцию чтобы не выглядеть как конченный дебил
+
+                        if (queuedUser.lastMessage == _hcOptions.HealthcheckMessage)
+                        {
+                            await HandleHealthcheckAsync();
+                            continue;
+                        }
                         if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
                             if(!IsUserExists(queuedUser.id, usersCollection))
@@ -169,6 +209,12 @@ namespace DTF_message_bot
                         {
                             if (chan.unreadCount != 0)
                             {
+                                if (chan.lastMessage.text == _hcOptions.HealthcheckMessage)
+                                {
+                                    await HandleHealthcheckAsync();
+                                    continue;
+                                }
+
                                 int currentActive;
                                 if (!activeUsers.Exists(x => x.id == chan.id))
                                 {

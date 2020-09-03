@@ -3,6 +3,8 @@ version: '3.4'
 services:
   dtf_message_bot:
     image: ${DOCKER_REGISTRY-}dtfmessagebot
+    depends_on:
+     - mongo
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,6 +15,14 @@ services:
     restart: always
     volumes:
       - mongo-volume:/data/db
+
+  mongo-express:
+    image: mongo-express
+    depends_on: 
+     - mongo
+    restart: always
+    ports:
+      - "127.0.0.1:8081:8081"
 
 volumes:
   mongo-volume:
