@@ -99,6 +99,7 @@ namespace DTF_message_bot
                     string[] splitId = temp.Split(" ");
                     var result1 = RequestsCollection.Find(builder.Eq("id", splitId[1])).ToList();
                     RequestsCollection.UpdateOne(Builders<Request>.Filter.Eq("id", result1.First().id), Builders<Request>.Update.Set("isSeen",true));
+                    answer += "Отметил если было что отмечать";
                     break;
                 case string temp when temp.Contains("/end"):
                     if (lastAction == UserActions.RequestAddCard_links)
