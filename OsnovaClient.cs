@@ -58,7 +58,7 @@ namespace DTF_message_bot
             //await StartAsync();
         }
 
-        public async Task StartAsync()
+        public async Task StartAsync() //слушатель сокетов
         {
             clientSocket = new SocketIO("wss://ws-sio.dtf.ru/?EIO=3&transport=websocket");
             clientSocket.OnConnected += _socketIoClient_OnConnected;
@@ -88,13 +88,13 @@ namespace DTF_message_bot
             await clientSocket.ConnectAsync();
         }
 
-        private async void _socketIoClient_OnConnected(object sender, EventArgs e)
+        private async void _socketIoClient_OnConnected(object sender, EventArgs e) //подключение к сокетам
         {
             isConnected = true;
             await clientSocket.EmitAsync("subscribe", new { channel = "m:"+mHash });
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken) //остановка слушателя сокетов
         {
             if (clientSocket != null)
             {
@@ -128,7 +128,7 @@ namespace DTF_message_bot
                 return "error";
             }
         }
-        private static async Task<string> RawPOSTHeaders(HttpClient client, string query, MultipartFormDataContent data) //Отправка POST-запроса с полученим чистого json
+        private static async Task<string> PossessionPost(HttpClient client, string query, MultipartFormDataContent data) //Отправка POST-запроса с получением хэша possession
         {
             try
             {
@@ -142,7 +142,7 @@ namespace DTF_message_bot
             }
         }
 
-        private string Possession()
+        private string Possession() //чтобы писать от имени подсайта
         {
             var request = JsonConvert.DeserializeObject<dynamic>(RawGET(clientApi, "locate?url=" + possessionID).Result);
             var requestParameters = new[]
@@ -156,10 +156,10 @@ namespace DTF_message_bot
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
             possessionID = (string)request.result.data.id;
-            return RawPOSTHeaders(clientApi, "auth/possess", content).Result;
+            return PossessionPost(clientApi, "auth/possess", content).Result;
         }
 
-        private void UpdateMHash()
+        private void UpdateMHash() //потрясающая работа с сокетами мессенджера
         {
             var hashQuery = JsonConvert.DeserializeObject<dynamic>(RawGET(clientRaw, "https://dtf.ru/u/" + ID + "/stats?mode=ajax").Result)["module.auth"];
             mHash = hashQuery.m_hash;

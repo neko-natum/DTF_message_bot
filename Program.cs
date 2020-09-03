@@ -158,14 +158,12 @@ namespace DTF_message_bot
                     int currentActive;
                     if (_osnova.socketTasks.TryDequeue(out var queuedUser))
                     {
-                        //_logger.LogInformation("I'm using sockets like a big boy");
 
                         if (queuedUser.lastMessage == _hcOptions.HealthcheckMessage)
                         {
                             await HandleHealthcheckAsync();
                             continue;
                         }
-
                         if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
                             if(!IsUserExists(queuedUser.id, usersCollection))
@@ -206,7 +204,6 @@ namespace DTF_message_bot
                     _osnova.Listen();
                     if (_osnova.LastStatus > 0)
                     {
-                        //_logger.LogInformation("Enter read");
                         var data = _osnova.RequestChannelsData();
                         foreach (Channels chan in data.result.channels)
                         {
@@ -269,6 +266,19 @@ namespace DTF_message_bot
                 {
                     _logger.LogError("Error in sockets");
                     _osnova.isError = false;
+                }
+                //Производится выгрузка неактивных дольше часа из списка
+                var selectedUsers = from user in activeUsers
+                                    where (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - user.lastMessageTime > 3600
+                                    select activeUsers.IndexOf(user);
+                if (selectedUsers.Any())
+                {
+                    foreach (int del in selectedUsers)
+                    {
+                        _logger.LogInformation("User {0} was removed from active memory due to inactivity", activeUsers.ElementAt(del).id);
+                        await UpdateUser(activeUsers.ElementAt(del), usersCollection);
+                        activeUsers.RemoveAt(del);
+                    }
                 }
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);
