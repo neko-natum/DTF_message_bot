@@ -35,7 +35,6 @@ namespace DTF_message_bot
                 .ConfigureServices((ctx, services) =>
                 {
                     services.AddOptions();
-                    services.Configure<PersistentStateOptions>(ctx.Configuration.GetSection("PersistentState"));
                     services.Configure<OsnovaOptions>(ctx.Configuration.GetSection("Osnova"));
                     services.Configure<MongoOptions>(ctx.Configuration.GetSection("Mongo"));
                     services.Configure<HealthchecksOptions>(ctx.Configuration.GetSection("Healthchecks"));
@@ -52,12 +51,10 @@ namespace DTF_message_bot
         private readonly OsnovaClient _osnova;
         private readonly HealthchecksOptions _hcOptions;
         private readonly ILogger<DtfMessageBotService> _logger;
-        private readonly string _stateDir;
         private readonly string _mongoConnectionString;
 
         public DtfMessageBotService(
             OsnovaClient osnova,
-            IOptions<PersistentStateOptions> storageOptionsAccessor,
             IOptions<MongoOptions> mongoOptionsAccessor,
             IOptions<HealthchecksOptions> hcOptionsAccessor,
             ILogger<DtfMessageBotService> logger,
@@ -66,11 +63,8 @@ namespace DTF_message_bot
             _osnova = osnova;
             _hcOptions = hcOptionsAccessor.Value;
             _logger = logger;
-            _stateDir = storageOptionsAccessor.Value.Directory;
             _mongoConnectionString = mongoOptionsAccessor.Value.ConnectionString;
         }
-
-        private string ResolveAbsolutePath(string relativePath) => Path.Combine(_stateDir, relativePath);
 
         private async Task CreateUser(User user, IMongoCollection<User> UserCollection) //создание нового пользователя в бд
         {
@@ -97,15 +91,6 @@ namespace DTF_message_bot
             return await UserCollection.Find(filter).AnyAsync();
         }
 
-        private void EnsureUsersDirectoryExists()
-        {
-            var dir = Path.Combine(_stateDir, "users");
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-        }
-
         private async Task HandleHealthcheckAsync()
         {
             if (_hcOptions.HealthchecksEnabled ?? false)
@@ -126,7 +111,6 @@ namespace DTF_message_bot
         {
             _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
             bool firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
-            EnsureUsersDirectoryExists();
 
             _logger.LogDebug("Connecting to MongoDB...");
             MongoClient client = null;

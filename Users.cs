@@ -48,10 +48,10 @@ namespace DTF_message_bot
          * обновление конкретных полей в таблице пользователей
          * данные сюда передавать через фильтр update
          */
-        private void UpdateUserField(IMongoCollection<User> UsersCollection, UpdateDefinition<User> update)
+        private async Task UpdateUserField(IMongoCollection<User> UsersCollection, UpdateDefinition<User> update)
         {
-            var filter = Builders<User>.Filter.Eq("id", id);
-            UsersCollection.UpdateOne(filter, update);
+            var filter = Builders<User>.Filter.Eq(x=>x.id, id);
+            await UsersCollection.UpdateOneAsync(filter, update);
         }
         /* 
         * основная функция логики бота, возвращает ответное сообщение в зависимости от входящего
@@ -79,7 +79,7 @@ namespace DTF_message_bot
                 case string temp when temp.Contains("/getRequests"):
                     if (isAdmin)
                     {
-                        var filter = builder.Eq("isSeen", false);
+                        var filter = builder.Eq(x=>x.isSeen, false);
                         var result = await RequestsCollection.Find(filter).ToListAsync();
                         if (!result.Any())
                         {
@@ -100,8 +100,8 @@ namespace DTF_message_bot
                     if (isAdmin)
                     {
                         string[] splitId = temp.Split(" ");
-                        var result1 = await RequestsCollection.Find(builder.Eq("id", splitId[1])).ToListAsync();
-                        await RequestsCollection.UpdateOneAsync(Builders<Request>.Filter.Eq("id", result1.First().id), Builders<Request>.Update.Set("isSeen", true));
+                        var result1 = await RequestsCollection.Find(builder.Eq(x=>x.id, splitId[1])).ToListAsync();
+                        await RequestsCollection.UpdateOneAsync(Builders<Request>.Filter.Eq(x=>x.id, result1.First().id), Builders<Request>.Update.Set(x=>x.isSeen, true));
                         answer += "Отметил если было что отмечать";
                     }
                     lastAction = UserActions.Neutral;
@@ -140,7 +140,7 @@ namespace DTF_message_bot
                             }
                             if (await worker.isAuthor(id, lastMessage))
                             {
-                                if (await RequestsCollection.Find(builder.Eq("id", worker.GetArticleID(lastMessage))).AnyAsync())
+                                if (await RequestsCollection.Find(builder.Eq(x=>x.id, await worker.GetArticleID(lastMessage))).AnyAsync())
                                 {
                                     answer += "Вы уже отправляли эту ссылку. ";
                                     currentAction = UserActions.RequestRepost;
@@ -274,7 +274,7 @@ namespace DTF_message_bot
                         links = links,
                         tags = tags
                     });
-                    UpdateUserField(database.GetCollection<User>("Users"), updateBuilder.Set("Description", Description).Set("links", links).Set("tags", tags));
+                    await UpdateUserField(database.GetCollection<User>("Users"), updateBuilder.Set(x=>x.Description, Description).Set(x=>x.links, links).Set(x=>x.tags, tags));
                     lastAction = UserActions.TaskCompleted;
                     break;
                 default:
@@ -286,8 +286,8 @@ namespace DTF_message_bot
                     }*/
                     break;
             }
-            var update = updateBuilder.Set("lastMessageTime", lastMessageTime).Set("lastMessage", lastMessage).Set("lastAction", lastAction);
-            UpdateUserField(database.GetCollection<User>("Users"), update);
+            var update = updateBuilder.Set(x=>x.lastMessageTime, lastMessageTime).Set(x=>x.lastMessage, lastMessage).Set(x=>x.lastAction, lastAction);
+            await UpdateUserField(database.GetCollection<User>("Users"), update);
             return answer;
         }
     }
@@ -319,7 +319,7 @@ namespace DTF_message_bot
         public string type { get; set; }
         public string link { get; set; }
         public DateTime dateCreation { get; set; }
-        public double isSeen { get; set; }
+        public bool isSeen { get; set; }
     }
     class Card
     {
