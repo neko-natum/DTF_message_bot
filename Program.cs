@@ -91,11 +91,10 @@ namespace DTF_message_bot
             return result.First();
         }
         
-        private bool IsUserExists(string id, IMongoCollection<User> UserCollection)
+        private async Task<bool> IsUserExists(string id, IMongoCollection<User> UserCollection)
         {
             var filter = Builders<User>.Filter.Eq("id", id);
-            var result = UserCollection.Find(filter).ToList();
-            return result.Any();
+            return await UserCollection.Find(filter).AnyAsync();
         }
 
         private void EnsureUsersDirectoryExists()
@@ -166,7 +165,7 @@ namespace DTF_message_bot
                         }
                         if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
-                            if(!IsUserExists(queuedUser.id, usersCollection))
+                            if(!await IsUserExists(queuedUser.id, usersCollection))
                             {
                                 activeUsers.Add(new User()
                                 {
@@ -218,7 +217,7 @@ namespace DTF_message_bot
                                 int currentActive;
                                 if (!activeUsers.Exists(x => x.id == chan.id))
                                 {
-                                    if (!IsUserExists(chan.id, usersCollection))
+                                    if (!await IsUserExists(chan.id, usersCollection))
                                     {
                                         activeUsers.Add(new User()
                                         {

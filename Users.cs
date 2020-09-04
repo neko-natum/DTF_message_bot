@@ -80,7 +80,7 @@ namespace DTF_message_bot
                     if (isAdmin)
                     {
                         var filter = builder.Eq("isSeen", false);
-                        var result = RequestsCollection.Find(filter).ToList();
+                        var result = await RequestsCollection.Find(filter).ToListAsync();
                         if (!result.Any())
                         {
                             answer += "Нет ожидающих запросов";
@@ -100,8 +100,8 @@ namespace DTF_message_bot
                     if (isAdmin)
                     {
                         string[] splitId = temp.Split(" ");
-                        var result1 = RequestsCollection.Find(builder.Eq("id", splitId[1])).ToList();
-                        RequestsCollection.UpdateOne(Builders<Request>.Filter.Eq("id", result1.First().id), Builders<Request>.Update.Set("isSeen", true));
+                        var result1 = await RequestsCollection.Find(builder.Eq("id", splitId[1])).ToListAsync();
+                        await RequestsCollection.UpdateOneAsync(Builders<Request>.Filter.Eq("id", result1.First().id), Builders<Request>.Update.Set("isSeen", true));
                         answer += "Отметил если было что отмечать";
                     }
                     lastAction = UserActions.Neutral;
@@ -140,7 +140,7 @@ namespace DTF_message_bot
                             }
                             if (await worker.isAuthor(id, lastMessage))
                             {
-                                if (RequestsCollection.Find(builder.Eq("id", worker.GetArticleID(lastMessage))).ToList().Any())
+                                if (await RequestsCollection.Find(builder.Eq("id", worker.GetArticleID(lastMessage))).AnyAsync())
                                 {
                                     answer += "Вы уже отправляли эту ссылку. ";
                                     currentAction = UserActions.RequestRepost;
