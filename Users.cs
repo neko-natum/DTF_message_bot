@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace DTF_message_bot
 {
@@ -56,7 +57,7 @@ namespace DTF_message_bot
         * основная функция логики бота, возвращает ответное сообщение в зависимости от входящего
         * по возможности менять только её чтобы не сломать что-то в процессе
         */
-        public string Actions(OsnovaClient worker, IMongoDatabase database) 
+        public async Task<string> Actions(OsnovaClient worker, IMongoDatabase database) 
         {
             UserActions currentAction = UserActions.Undefined;
             string answer="";
@@ -137,7 +138,7 @@ namespace DTF_message_bot
                                 currentAction = UserActions.RequestRepost;
                                 break;
                             }
-                            if (worker.isAuthor(id, lastMessage))
+                            if (await worker.isAuthor(id, lastMessage))
                             {
                                 if (RequestsCollection.Find(builder.Eq("id", worker.GetArticleID(lastMessage))).ToList().Any())
                                 {
@@ -146,9 +147,9 @@ namespace DTF_message_bot
                                 }
                                 else
                                 {
-                                    RequestsCollection.InsertOneAsync(new Request()
+                                    await RequestsCollection.InsertOneAsync(new Request()
                                     {
-                                        id = worker.GetArticleID(lastMessage),
+                                        id = await worker.GetArticleID(lastMessage),
                                         user_id = id,
                                         link = lastMessage,
                                         type = "repost",
@@ -156,7 +157,7 @@ namespace DTF_message_bot
                                     }
                                     );
                                     currentAction = UserActions.TaskCompleted;
-                                    worker.AnswerUser(worker.possessionHash != null ? worker.possessionID : worker.ID, "Новый входящий реквест: " + lastMessage + "\n");
+                                    await worker.AnswerUser(worker.possessionHash != null ? worker.possessionID : worker.ID, "Новый входящий реквест: " + lastMessage + "\n");
                                     lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                                 }
                                 break;
@@ -180,7 +181,7 @@ namespace DTF_message_bot
                             }
                             break;
                         case UserActions.RequestAddCard_links:
-                            if (worker.isAuthor(id, lastMessage))
+                            if (await worker.isAuthor(id, lastMessage))
                             {
                                 links.Add(lastMessage);
                                 if (links.Count < 5)
@@ -264,7 +265,7 @@ namespace DTF_message_bot
                     break;
                 case (UserActions.RequestAddCard_finish):
                     answer += "Создание карточки завершено, ожидайте проверки";
-                    CardsCollection.InsertOneAsync(new Card()
+                    await CardsCollection.InsertOneAsync(new Card()
                     {
                         id = id,
                         username = username,

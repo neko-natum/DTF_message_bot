@@ -47,11 +47,13 @@ namespace DTF_message_bot
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
             if (possessionID != null)
             {
-                possessionHash = Possession();
-                if(possessionHash!=null)
+                possessionHash = Possession().ConfigureAwait(false).GetAwaiter().GetResult();
+                if (possessionHash != null)
+                {
                     clientApi.DefaultRequestHeaders.Add("X-Device-Possession-Token", possessionHash);
+                }
             }
-            UpdateMHash();
+            UpdateMHash().ConfigureAwait(false).GetAwaiter().GetResult();
             RepostTimeout = options.RepostTimeout;
 
             //clientSocket = new SocketIO("wss://ws-sio.dtf.ru/socket.io/?EIO=3&transport=websocket");
@@ -64,7 +66,7 @@ namespace DTF_message_bot
             clientSocket.OnConnected += _socketIoClient_OnConnected;
             clientSocket.OnDisconnected += (_, e) => isConnected = false;
             clientSocket.OnError += (_, e) => isError = true;
-            clientSocket.OnReconnecting += (_, e) => UpdateMHash();
+            clientSocket.OnReconnecting += (_, e) => UpdateMHash().ConfigureAwait(false).GetAwaiter().GetResult();
             //clientSocket.OnPing += (_, e) => _logger.LogInformation("Ping");
             //clientSocket.OnPong += (_, e) => _logger.LogInformation($"Pong in {(int)e.TotalMilliseconds}ms");
             clientSocket.On("event", response =>
@@ -120,7 +122,7 @@ namespace DTF_message_bot
             try
             {
                 var response = await client.PostAsync(query, data);
-                return response.Content.ReadAsStringAsync().Result;
+                return await response.Content.ReadAsStringAsync();
             }
             catch (Exception ex)
             {
@@ -142,7 +144,7 @@ namespace DTF_message_bot
             }
         }
 
-        private string Possession() //чтобы писать от имени подсайта
+        private async Task<string> Possession() //чтобы писать от имени подсайта
         {
             var request = JsonConvert.DeserializeObject<dynamic>(RawGET(clientApi, "locate?url=" + possessionID).Result);
             var requestParameters = new[]
@@ -156,24 +158,24 @@ namespace DTF_message_bot
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
             possessionID = (string)request.result.data.id;
-            return PossessionPost(clientApi, "auth/possess", content).Result;
+            return await PossessionPost(clientApi, "auth/possess", content);
         }
 
-        private void UpdateMHash() //потрясающая работа с сокетами мессенджера
+        private async Task UpdateMHash() //потрясающая работа с сокетами мессенджера
         {
-            var hashQuery = JsonConvert.DeserializeObject<dynamic>(RawGET(clientRaw, "https://dtf.ru/u/" + ID + "/stats?mode=ajax").Result)["module.auth"];
+            var hashQuery = JsonConvert.DeserializeObject<dynamic>(await RawGET(clientRaw, "https://dtf.ru/u/" + ID + "/stats?mode=ajax"))["module.auth"];
             mHash = hashQuery.m_hash;
             mHashLifetime = hashQuery.m_hash_expiration_time;
         }
 
-        public void Listen() //"Слушает" входящие через запрос
+        public async Task Listen() //"Слушает" входящие через запрос
         {
-            LastResult = RawGET(clientApi, "m/counter").Result;
+            LastResult = await RawGET(clientApi, "m/counter");
             if (LastResult == "error") LastStatus = -1;
             int.TryParse(string.Join("", LastResult.Where(c => char.IsDigit(c))), out LastStatus);
         }
 
-        public void AnswerUser(string chanId, string answer) //Отправляет сообщение в указанный канал
+        public async Task AnswerUser(string chanId, string answer) //Отправляет сообщение в указанный канал
         {
             var requestParameters = new[] //отправляем послание
             {
@@ -189,11 +191,11 @@ namespace DTF_message_bot
                 content.Add(new StringContent(keyValuePair.Value),
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
-            LastResult = RawPOST(clientApi, "m/send", content).Result;
-            MarkAsRead(chanId);
+            LastResult = await RawPOST(clientApi, "m/send", content);
+            await MarkAsRead(chanId);
         }
 
-        public void MarkAsRead(string chanId) //Отмечает все сообщения как прочитанные
+        public async Task MarkAsRead(string chanId) //Отмечает все сообщения как прочитанные
         {
             var requestParameters = new[]
             {
@@ -206,24 +208,24 @@ namespace DTF_message_bot
                 content.Add(new StringContent(keyValuePair.Value),
                     String.Format("\"{0}\"", keyValuePair.Key));
             }
-            LastResult = RawPOST(clientApi, "m/markAsRead", content).Result;
+            LastResult = await RawPOST(clientApi, "m/markAsRead", content);
         }
 
-        public bool isAuthor(string id, string link) //проверка авторства
+        public async Task<bool> isAuthor(string id, string link) //проверка авторства
         {
-            return RawGET(clientApi, "locate?url="+link).Result.Contains("\"author\":{\"id\":"+id+",");
+            var responseStr = await RawGET(clientApi, "locate?url=" + link);
+            return responseStr.Contains("\"author\":{\"id\":"+id+",");
         }
 
-        public string GetArticleID(string link) //получение идентификатора статьи
+        public async Task<string> GetArticleID(string link) //получение идентификатора статьи
         {
-            var request = JsonConvert.DeserializeObject<dynamic>(RawGET(clientApi, "locate?url=" + link).Result);
+            var request = JsonConvert.DeserializeObject<dynamic>(await RawGET(clientApi, "locate?url=" + link));
             return (string)request.result.data.id;
         }
 
-        public MessageData RequestChannelsData() //Запрашивает информацию о входящих
+        public async Task<MessageData> RequestChannelsData() //Запрашивает информацию о входящих
         {
-            MessageData temp = JsonConvert.DeserializeObject<MessageData>(RawGET(clientApi, "m/channels").Result);
-            return temp;
+            return JsonConvert.DeserializeObject<MessageData>(await RawGET(clientApi, "m/channels"));
         }
     }
 }

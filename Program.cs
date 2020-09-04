@@ -194,17 +194,17 @@ namespace DTF_message_bot
                             currentActive = activeUsers.FindIndex(x => string.Equals(x.id, queuedUser.id));
                         }
                         activeUsers.ElementAt(currentActive).UpdateUser(queuedUser.id, queuedUser.username, queuedUser.imagePath, queuedUser.lastMessageTime, queuedUser.lastMessage);
-                        _osnova.MarkAsRead(queuedUser.id);
-                        string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                        if (answer != "") _osnova.AnswerUser(queuedUser.id, answer);
+                        await _osnova.MarkAsRead(queuedUser.id);
+                        string answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                        if (answer != "") await _osnova.AnswerUser(queuedUser.id, answer);
                     }
                 }
                 else //работа на прямых запросах
                 {
-                    _osnova.Listen();
+                    await _osnova.Listen();
                     if (_osnova.LastStatus > 0)
                     {
-                        var data = _osnova.RequestChannelsData();
+                        var data = await _osnova.RequestChannelsData();
                         foreach (Channels chan in data.result.channels)
                         {
                             if (chan.unreadCount != 0)
@@ -246,9 +246,9 @@ namespace DTF_message_bot
                                     currentActive = activeUsers.FindIndex(x => string.Equals(x.id, chan.id));
                                 }
                                 activeUsers.ElementAt(currentActive).UpdateUser(chan.id, chan.lastMessage.author.title, chan.lastMessage.author.picture, chan.lastMessage.dtCreated, chan.lastMessage.text);
-                                _osnova.MarkAsRead(chan.id);
-                                string answer = activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                                if (answer != "") _osnova.AnswerUser(chan.id, answer);
+                                await _osnova.MarkAsRead(chan.id);
+                                string answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                                if (answer != "") await _osnova.AnswerUser(chan.id, answer);
                             }
                         }
                     }
