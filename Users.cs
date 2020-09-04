@@ -1,7 +1,7 @@
-﻿using System;
+﻿using MongoDB.Driver;
+
+using System;
 using System.Collections.Generic;
-using MongoDB.Driver;
-using MongoDB.Bson;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -11,7 +11,7 @@ namespace DTF_message_bot
      * класс пользователя
      * пишется в соответствующую таблицу бд
      */
-    class User
+    internal class User
     {
         [MongoDB.Bson.Serialization.Attributes.BsonId]
         public string id { get; set; } //идентификатор пользователя
@@ -50,17 +50,17 @@ namespace DTF_message_bot
          */
         private async Task UpdateUserField(IMongoCollection<User> UsersCollection, UpdateDefinition<User> update)
         {
-            var filter = Builders<User>.Filter.Eq(x=>x.id, id);
+            var filter = Builders<User>.Filter.Eq(x => x.id, id);
             await UsersCollection.UpdateOneAsync(filter, update);
         }
         /* 
         * основная функция логики бота, возвращает ответное сообщение в зависимости от входящего
         * по возможности менять только её чтобы не сломать что-то в процессе
         */
-        public async Task<string> Actions(OsnovaClient worker, IMongoDatabase database) 
+        public async Task<string> Actions(OsnovaClient worker, IMongoDatabase database)
         {
-            UserActions currentAction = UserActions.Undefined;
-            string answer="";
+            var currentAction = UserActions.Undefined;
+            var answer = "";
             var RequestsCollection = database.GetCollection<Request>("Requests");
             var builder = Builders<Request>.Filter;
             var CardsCollection = database.GetCollection<Card>("Cards");
@@ -79,7 +79,7 @@ namespace DTF_message_bot
                 case string temp when temp.Contains("/getRequests"):
                     if (isAdmin)
                     {
-                        var filter = builder.Eq(x=>x.isSeen, false);
+                        var filter = builder.Eq(x => x.isSeen, false);
                         var result = await RequestsCollection.Find(filter).ToListAsync();
                         if (!result.Any())
                         {
@@ -87,8 +87,8 @@ namespace DTF_message_bot
                         }
                         else
                         {
-                            int i = 0;
-                            foreach (Request request in result)
+                            var i = 0;
+                            foreach (var request in result)
                             {
                                 answer += ++i + ". Пост: " + request.link + " ; дата: " + request.dateCreation + "\n";
                             }
@@ -99,18 +99,22 @@ namespace DTF_message_bot
                 case string temp when temp.Contains("/markSeen"):
                     if (isAdmin)
                     {
-                        string[] splitId = temp.Split(" ");
-                        var result1 = await RequestsCollection.Find(builder.Eq(x=>x.id, splitId[1])).ToListAsync();
-                        await RequestsCollection.UpdateOneAsync(Builders<Request>.Filter.Eq(x=>x.id, result1.First().id), Builders<Request>.Update.Set(x=>x.isSeen, true));
+                        var splitId = temp.Split(" ");
+                        var result1 = await RequestsCollection.Find(builder.Eq(x => x.id, splitId[1])).ToListAsync();
+                        await RequestsCollection.UpdateOneAsync(Builders<Request>.Filter.Eq(x => x.id, result1.First().id), Builders<Request>.Update.Set(x => x.isSeen, true));
                         answer += "Отметил если было что отмечать";
                     }
                     lastAction = UserActions.Neutral;
                     break;
                 case string temp when temp.Contains("/end"):
                     if (lastAction == UserActions.RequestAddCard_links)
+                    {
                         currentAction = UserActions.RequestAddCard_tags;
+                    }
                     else if (lastAction == UserActions.RequestAddCard_tags)
+                    {
                         currentAction = UserActions.RequestAddCard_finish;
+                    }
                     else if (lastAction == UserActions.RequestRepost)
                     {
                         currentAction = UserActions.Neutral;
@@ -140,7 +144,7 @@ namespace DTF_message_bot
                             }
                             if (await worker.isAuthor(id, lastMessage))
                             {
-                                if (await RequestsCollection.Find(builder.Eq(x=>x.id, await worker.GetArticleID(lastMessage))).AnyAsync())
+                                if (await RequestsCollection.Find(builder.Eq(x => x.id, await worker.GetArticleID(lastMessage))).AnyAsync())
                                 {
                                     answer += "Вы уже отправляли эту ссылку. ";
                                     currentAction = UserActions.RequestRepost;
@@ -158,7 +162,7 @@ namespace DTF_message_bot
                                     );
                                     currentAction = UserActions.TaskCompleted;
                                     await worker.AnswerUser(worker.possessionHash != null ? worker.possessionID : worker.ID, "Новый входящий реквест: " + lastMessage + "\n");
-                                    lastRequestRepost = (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+                                    lastRequestRepost = (double) (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                                 }
                                 break;
                             }
@@ -185,9 +189,15 @@ namespace DTF_message_bot
                             {
                                 links.Add(lastMessage);
                                 if (links.Count < 5)
+                                {
                                     currentAction = UserActions.Neutral;
+                                }
+
                                 if (links.Count == 5)
+                                {
                                     currentAction = UserActions.RequestAddCard_tags;
+                                }
+
                                 break;
                             }
                             else
@@ -199,9 +209,15 @@ namespace DTF_message_bot
                         case UserActions.RequestAddCard_tags:
                             tags.Add(lastMessage);
                             if (tags.Count < 5)
+                            {
                                 currentAction = UserActions.Neutral;
+                            }
+
                             if (tags.Count == 5)
+                            {
                                 currentAction = UserActions.RequestAddCard_finish;
+                            }
+
                             break;
                         default:
                             currentAction = UserActions.Start;
@@ -213,12 +229,18 @@ namespace DTF_message_bot
             {
                 case (UserActions.Start):
                     if (lastAction == UserActions.Undefined)
+                    {
                         answer += "Добро пожаловать в бота Блогосферы!\n" +
                             "Для работы необходимо ввести одну из команд бота.\n" +
                             "Посмотреть все доступные на данный момент команды можно отправив /help";
+                    }
+
                     if (lastAction == UserActions.Start || lastAction == UserActions.TaskCompleted)
+                    {
                         answer += "Для работы необходимо ввести одну из команд бота.\n" +
                             "Посмотреть все доступные на данный момент команды можно отправив /help ";
+                    }
+
                     lastAction = UserActions.Start;
                     break;
                 case (UserActions.Help):
@@ -226,15 +248,18 @@ namespace DTF_message_bot
                         "/help - вызов справки\n" +
                         "/repost - отправить запрос на репост"/* +
                         "/card - в процессе"*/;
-                    if(isAdmin)
+                    if (isAdmin)
+                    {
                         answer += "\nРасширенный список команд:\n" +
                         "/getRequests - получить список запросов на репост\n" +
                         "/markSeen %id поста% - отметить запрос как просмотренный"/* +
                         "/reject %ссылка на пост% - отметить запрос как отклонённый"*/;
+                    }
+
                     lastAction = UserActions.Help;
                     break;
                 case (UserActions.RequestRepost):
-                    if ((double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= worker.RepostTimeout)
+                    if ((double) (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - lastRequestRepost >= worker.RepostTimeout)
                     {
                         lastAction = UserActions.RequestRepost;
                         answer += "Отправьте ссылку на статью для репоста. Для отмены команды отправьте /end";
@@ -274,19 +299,21 @@ namespace DTF_message_bot
                         links = links,
                         tags = tags
                     });
-                    await UpdateUserField(database.GetCollection<User>("Users"), updateBuilder.Set(x=>x.Description, Description).Set(x=>x.links, links).Set(x=>x.tags, tags));
+                    await UpdateUserField(database.GetCollection<User>("Users"), updateBuilder.Set(x => x.Description, Description).Set(x => x.links, links).Set(x => x.tags, tags));
                     lastAction = UserActions.TaskCompleted;
                     break;
                 default:
-                    if(lastAction==UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
-                        answer+="Необходимо ввести команду. ";
-                    /*if (lastAction == UserActions.RequestAddCard_links)
+                    if (lastAction == UserActions.Undefined || lastAction == UserActions.Start || lastAction == UserActions.Help)
                     {
-                        if(links.Count==0)
-                    }*/
+                        answer += "Необходимо ввести команду. ";
+                    }
+                    /*if (lastAction == UserActions.RequestAddCard_links)
+{
+   if(links.Count==0)
+}*/
                     break;
             }
-            var update = updateBuilder.Set(x=>x.lastMessageTime, lastMessageTime).Set(x=>x.lastMessage, lastMessage).Set(x=>x.lastAction, lastAction);
+            var update = updateBuilder.Set(x => x.lastMessageTime, lastMessageTime).Set(x => x.lastMessage, lastMessage).Set(x => x.lastAction, lastAction);
             await UpdateUserField(database.GetCollection<User>("Users"), update);
             return answer;
         }
@@ -312,7 +339,8 @@ namespace DTF_message_bot
         Neutral = 11
     }
 
-    class Request {
+    internal class Request
+    {
         [MongoDB.Bson.Serialization.Attributes.BsonId]
         public string id { get; set; }
         public string user_id { get; set; }
@@ -321,7 +349,8 @@ namespace DTF_message_bot
         public DateTime dateCreation { get; set; }
         public bool isSeen { get; set; }
     }
-    class Card
+
+    internal class Card
     {
         public string id { get; set; }
         public string username { get; set; }

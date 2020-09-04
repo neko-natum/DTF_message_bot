@@ -1,13 +1,13 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Linq;
-using System.Net.Http;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SocketIOClient;
-using System.Threading;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DTF_message_bot
 {
@@ -15,7 +15,7 @@ namespace DTF_message_bot
      * Реализация запросов по API Очобы
      * Все запросы GET/POST так или иначе добавлять сюда
      */
-    class OsnovaClient
+    internal class OsnovaClient
     {
         private readonly HttpClient clientApi;
         private readonly HttpClient clientRaw;
@@ -39,7 +39,7 @@ namespace DTF_message_bot
             clientApi = new HttpClient();
             clientRaw = new HttpClient();
             clientApi.DefaultRequestHeaders.Add("X-Device-Token", options.Token);
-            clientRaw.DefaultRequestHeaders.Add("Cookie", "osnova-remember="+options.osnova_remember+"; osnova-aid="+options.osnova_aid+ "; osnova-possession=" + options.osnova_possession);
+            clientRaw.DefaultRequestHeaders.Add("Cookie", "osnova-remember=" + options.osnova_remember + "; osnova-aid=" + options.osnova_aid + "; osnova-possession=" + options.osnova_possession);
             clientRaw.DefaultRequestHeaders.Add("user-agent", "Mozilla/5444.0");
             clientRaw.DefaultRequestHeaders.Add("x-this-is-csrf", "THIS IS SPARTA!");
             ID = options.SelfID;
@@ -72,17 +72,17 @@ namespace DTF_message_bot
             clientSocket.On("event", response =>
             {
                 var data = response.GetValue<dynamic>();
-                if (((string)data.channel == "m:"+mHash) && ((string)data.data.action == "addMessage"))
+                if (((string) data.channel == "m:" + mHash) && ((string) data.data.action == "addMessage"))
                 {
-                    if ((string)data.data.message.author.id != ID && (string)data.data.message.author.id != possessionID)
+                    if ((string) data.data.message.author.id != ID && (string) data.data.message.author.id != possessionID)
                     {
                         socketTasks.Enqueue(new User
                         {
-                            id = (string)data.data.message.author.id,
-                            username = (string)data.data.message.author.title,
-                            imagePath = (string)data.data.message.author.picture,
-                            lastMessageTime = (double)data.data.message.dtCreated,
-                            lastMessage = (string)data.data.message.text
+                            id = (string) data.data.message.author.id,
+                            username = (string) data.data.message.author.title,
+                            imagePath = (string) data.data.message.author.picture,
+                            lastMessageTime = (double) data.data.message.dtCreated,
+                            lastMessage = (string) data.data.message.text
                         });
                     }
                 }
@@ -93,10 +93,10 @@ namespace DTF_message_bot
         private async void _socketIoClient_OnConnected(object sender, EventArgs e) //подключение к сокетам
         {
             isConnected = true;
-            await clientSocket.EmitAsync("subscribe", new { channel = "m:"+mHash });
+            await clientSocket.EmitAsync("subscribe", new { channel = "m:" + mHash });
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken) //остановка слушателя сокетов
+        public async Task StopAsync() //остановка слушателя сокетов
         {
             if (clientSocket != null)
             {
@@ -155,9 +155,9 @@ namespace DTF_message_bot
             foreach (var keyValuePair in requestParameters)
             {
                 content.Add(new StringContent(keyValuePair.Value),
-                    String.Format("\"{0}\"", keyValuePair.Key));
+                    string.Format("\"{0}\"", keyValuePair.Key));
             }
-            possessionID = (string)request.result.data.id;
+            possessionID = (string) request.result.data.id;
             return await PossessionPost(clientApi, "auth/possess", content);
         }
 
@@ -171,7 +171,11 @@ namespace DTF_message_bot
         public async Task Listen() //"Слушает" входящие через запрос
         {
             LastResult = await RawGET(clientApi, "m/counter");
-            if (LastResult == "error") LastStatus = -1;
+            if (LastResult == "error")
+            {
+                LastStatus = -1;
+            }
+
             int.TryParse(string.Join("", LastResult.Where(c => char.IsDigit(c))), out LastStatus);
         }
 
@@ -189,7 +193,7 @@ namespace DTF_message_bot
             foreach (var keyValuePair in requestParameters)
             {
                 content.Add(new StringContent(keyValuePair.Value),
-                    String.Format("\"{0}\"", keyValuePair.Key));
+                    string.Format("\"{0}\"", keyValuePair.Key));
             }
             LastResult = await RawPOST(clientApi, "m/send", content);
             await MarkAsRead(chanId);
@@ -206,7 +210,7 @@ namespace DTF_message_bot
             foreach (var keyValuePair in requestParameters)
             {
                 content.Add(new StringContent(keyValuePair.Value),
-                    String.Format("\"{0}\"", keyValuePair.Key));
+                    string.Format("\"{0}\"", keyValuePair.Key));
             }
             LastResult = await RawPOST(clientApi, "m/markAsRead", content);
         }
@@ -214,18 +218,16 @@ namespace DTF_message_bot
         public async Task<bool> isAuthor(string id, string link) //проверка авторства
         {
             var responseStr = await RawGET(clientApi, "locate?url=" + link);
-            return responseStr.Contains("\"author\":{\"id\":"+id+",");
+            return responseStr.Contains("\"author\":{\"id\":" + id + ",");
         }
 
         public async Task<string> GetArticleID(string link) //получение идентификатора статьи
         {
             var request = JsonConvert.DeserializeObject<dynamic>(await RawGET(clientApi, "locate?url=" + link));
-            return (string)request.result.data.id;
+            return (string) request.result.data.id;
         }
 
         public async Task<MessageData> RequestChannelsData() //Запрашивает информацию о входящих
-        {
-            return JsonConvert.DeserializeObject<MessageData>(await RawGET(clientApi, "m/channels"));
-        }
+=> JsonConvert.DeserializeObject<MessageData>(await RawGET(clientApi, "m/channels"));
     }
 }

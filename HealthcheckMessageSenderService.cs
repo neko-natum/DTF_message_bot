@@ -1,10 +1,10 @@
-using System.Threading;
 using Microsoft.Extensions.Hosting;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using System;
-using System.Net.Http;
 using System.Globalization;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DTF_message_bot
 {
@@ -22,7 +22,7 @@ namespace DTF_message_bot
         {
             var osnovaOptions = osnovaOptionsAccessor?.Value ?? throw new ArgumentNullException(nameof(osnovaOptionsAccessor));
             var hcOptions = optionsAccessor?.Value ?? throw new ArgumentNullException(nameof(optionsAccessor));
-            
+
             if (!(_hcEnabled = hcOptions.HealthchecksEnabled ?? false))
             {
                 return;
@@ -46,11 +46,9 @@ namespace DTF_message_bot
             }
         }
 
-        protected override Task<bool> OnBeforeStartAsync()
-        {
+        protected override Task<bool> OnBeforeStartAsync() =>
             // sender will not start if there is no healthcheck configured
-            return Task.FromResult(_hcEnabled);
-        }
+            Task.FromResult(_hcEnabled);
 
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {

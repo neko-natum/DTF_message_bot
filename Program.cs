@@ -1,17 +1,16 @@
-﻿using System.Threading;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using Microsoft.Extensions.Hosting;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using Polly;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DTF_message_bot
 {
@@ -67,9 +66,7 @@ namespace DTF_message_bot
         }
 
         private async Task CreateUser(User user, IMongoCollection<User> UserCollection) //создание нового пользователя в бд
-        {
-            await UserCollection.InsertOneAsync(user);
-        }
+=> await UserCollection.InsertOneAsync(user);
 
         private async Task UpdateUser(User user, IMongoCollection<User> UserCollection) //обновление данных пользователя в бд
         {
@@ -81,10 +78,14 @@ namespace DTF_message_bot
         {
             var filter = Builders<User>.Filter.Eq("id", id);
             var result = await UserCollection.Find(filter).ToListAsync();
-            if (result.Count > 1) _logger.LogInformation("Что за хуйня? Почему больше одного ID?");
+            if (result.Count > 1)
+            {
+                _logger.LogInformation("Что за хуйня? Почему больше одного ID?");
+            }
+
             return result.First();
         }
-        
+
         private async Task<bool> IsUserExists(string id, IMongoCollection<User> UserCollection)
         {
             var filter = Builders<User>.Filter.Eq("id", id);
@@ -95,10 +96,8 @@ namespace DTF_message_bot
         {
             if (_hcOptions.HealthchecksEnabled ?? false)
             {
-                using (var httpClient = new HttpClient())
-                {
-                    await httpClient.GetAsync(_hcOptions.HealthcheckUri);
-                }
+                using var httpClient = new HttpClient();
+                await httpClient.GetAsync(_hcOptions.HealthcheckUri);
             }
         }
 
@@ -110,7 +109,7 @@ namespace DTF_message_bot
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Bot for Osnova-based messenger\nStarted up!");
-            bool firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
+            var firstRun = true; //первый прогон после запуска всегда прямым запросом чтобы отследить входящие до включения
 
             _logger.LogDebug("Connecting to MongoDB...");
             MongoClient client = null;
@@ -127,16 +126,16 @@ namespace DTF_message_bot
                 {
                     client = new MongoClient(_mongoConnectionString);
                     db = client.GetDatabase("messagebot");
-                    usersCollection = db.GetCollection<User>("Users"); 
+                    usersCollection = db.GetCollection<User>("Users");
                     _logger.LogInformation("Known users: {0}", await usersCollection.EstimatedDocumentCountAsync());
                 });
             _logger.LogDebug("MongoDB connection success.");
 
             await _osnova.StartAsync();
-            List<User> activeUsers = new List<User>();
+            var activeUsers = new List<User>();
             do
             {
-                if (_osnova.isConnected&&firstRun==false) //работа на сокетах
+                if (_osnova.isConnected && firstRun == false) //работа на сокетах
                 {
                     int currentActive;
                     if (_osnova.socketTasks.TryDequeue(out var queuedUser))
@@ -149,7 +148,7 @@ namespace DTF_message_bot
                         }
                         if (!activeUsers.Exists(x => x.id == queuedUser.id))
                         {
-                            if(!await IsUserExists(queuedUser.id, usersCollection))
+                            if (!await IsUserExists(queuedUser.id, usersCollection))
                             {
                                 activeUsers.Add(new User()
                                 {
@@ -178,8 +177,11 @@ namespace DTF_message_bot
                         }
                         activeUsers.ElementAt(currentActive).UpdateUser(queuedUser.id, queuedUser.username, queuedUser.imagePath, queuedUser.lastMessageTime, queuedUser.lastMessage);
                         await _osnova.MarkAsRead(queuedUser.id);
-                        string answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                        if (answer != "") await _osnova.AnswerUser(queuedUser.id, answer);
+                        var answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                        if (answer != "")
+                        {
+                            await _osnova.AnswerUser(queuedUser.id, answer);
+                        }
                     }
                 }
                 else //работа на прямых запросах
@@ -188,7 +190,7 @@ namespace DTF_message_bot
                     if (_osnova.LastStatus > 0)
                     {
                         var data = await _osnova.RequestChannelsData();
-                        foreach (Channels chan in data.result.channels)
+                        foreach (var chan in data.result.channels)
                         {
                             if (chan.unreadCount != 0)
                             {
@@ -230,8 +232,11 @@ namespace DTF_message_bot
                                 }
                                 activeUsers.ElementAt(currentActive).UpdateUser(chan.id, chan.lastMessage.author.title, chan.lastMessage.author.picture, chan.lastMessage.dtCreated, chan.lastMessage.text);
                                 await _osnova.MarkAsRead(chan.id);
-                                string answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
-                                if (answer != "") await _osnova.AnswerUser(chan.id, answer);
+                                var answer = await activeUsers.ElementAt(currentActive).Actions(_osnova, db);
+                                if (answer != "")
+                                {
+                                    await _osnova.AnswerUser(chan.id, answer);
+                                }
                             }
                         }
                     }
@@ -252,11 +257,11 @@ namespace DTF_message_bot
                 }
                 //Производится выгрузка неактивных дольше часа из списка
                 var selectedUsers = from user in activeUsers
-                                    where (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - user.lastMessageTime > 3600
+                                    where (double) (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - user.lastMessageTime > 3600
                                     select activeUsers.IndexOf(user);
                 if (selectedUsers.Any())
                 {
-                    foreach (int del in selectedUsers)
+                    foreach (var del in selectedUsers)
                     {
                         _logger.LogInformation("User {0} was removed from active memory due to inactivity", activeUsers.ElementAt(del).id);
                         await UpdateUser(activeUsers.ElementAt(del), usersCollection);
@@ -266,7 +271,7 @@ namespace DTF_message_bot
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);
 
-            foreach (User user in activeUsers)
+            foreach (var user in activeUsers)
             {
                 await UpdateUser(user, usersCollection);
             }
