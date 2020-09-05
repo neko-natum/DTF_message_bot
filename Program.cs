@@ -277,9 +277,17 @@ namespace DTF_message_bot
                     {
                         _logger.LogInformation("User {0} was removed from active memory due to inactivity", activeUsers.ElementAt(del).id);
                         await UpdateUser(activeUsers.ElementAt(del), usersCollection);
-                        activeUsers.RemoveAt(del);
+                    }
+                    try
+                    {
+                        activeUsers.RemoveAll(user => (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds - user.lastMessageTime > 3600);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError("Exception during remove of inactive.\n{0}", e.Message.ToString());
                     }
                 }
+                
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);
 
