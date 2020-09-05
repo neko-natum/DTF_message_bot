@@ -1,0 +1,19 @@
+name: Pull request telegram notification
+
+on:
+  push:
+    branches: 
+      - master
+  pull_request:
+    branches: 
+      - master
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Telegram notification
+      uses: appleboy/telegram-action@0.0.3
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
