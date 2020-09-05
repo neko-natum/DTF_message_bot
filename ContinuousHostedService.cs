@@ -1,5 +1,5 @@
-﻿using System.Threading;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DTF_message_bot
@@ -31,7 +31,7 @@ namespace DTF_message_bot
                 {
                     _host.StopApplication();
                 }
-            }); 
+            });
             await OnAfterStartAsync();
         }
 
