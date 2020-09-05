@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2.1.0
+        with:
+          key: ${{ secrets.VM_SSH_KEY }}
+          known_hosts: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+
+      - name: Run a multi-line script
+        run: |
+          cd $GITHUB_WORKSPACE
+          echo '${{ secrets.APP_SECRETS_JSON }}' > appsettings.secrets.json
+          DOCKER_HOST="ssh://root@${{ secrets.VM_HOST }}" docker-compose up -d --build
