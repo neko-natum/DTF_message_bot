@@ -9,11 +9,11 @@ on:
       - master
 
 jobs:
-  greet:
+  send-notification:
     runs-on: ubuntu-latest
     steps:
     - name: Telegram notification
-      uses: appleboy/telegram-action@0.0.3
+      uses: appleboy/telegram-action@0.0.8
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
