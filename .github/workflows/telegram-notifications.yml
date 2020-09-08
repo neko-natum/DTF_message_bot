@@ -7,13 +7,33 @@ on:
   pull_request:
     branches: 
       - master
+      - prod
 
 jobs:
   send-notification:
     runs-on: ubuntu-latest
     steps:
-    - name: Send
+    - name: Send master push notification
+      if: github.ref == "master" && github.event_name == "push"
       uses: appleboy/telegram-action@v0.0.8
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: format('**{0}** pushed to **{1}**: __{2}__', github.actor, github.ref, github.event.head_commit.message)
+        format: markdown
+    - name: Send new PR notification
+      if: github.base_ref == "master" && github.event_name == "pull_request" && github.event.action == "opened"
+      uses: appleboy/telegram-action@v0.0.8
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: format('New [PR #{0}](https://github.com/{1}/pull/{0}) by **{2}**: __{3}__', github.event.number, github.repository, github.actor, github.event.title)
+        format: markdown
+    - name: Send prod PR notification
+      if: github.base_ref == "prod" && github.event_name == "pull_request" && github.event.action == "opened"
+      uses: appleboy/telegram-action@v0.0.8
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: format('New deploy [PR #{0}](https://github.com/{1}/pull/{0}) by **{2}**: __{3}__', github.event.number, github.repository, github.actor, github.event.title)
+        format: markdown
