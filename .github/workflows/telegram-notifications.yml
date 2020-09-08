@@ -27,7 +27,7 @@ jobs:
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: ${{ format('New <a href=''https://github.com/{1}/pull/{0}''>PR #{0}</a> by <b>{2}</b>: <i>{3}</i>', github.event.number, github.repository, github.actor, github.event.title) }}
+        message: ${{ format('New <a href=''https://github.com/{1}/pull/{0}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.repository, github.actor, github.event.title) }}
         format: html
     - name: Send prod PR notification
       if: github.base_ref == 'refs/heads/prod' && github.event_name == 'pull_request' && github.event.action == 'opened'
@@ -35,5 +35,5 @@ jobs:
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: ${{ format('New deploy <a href=''https://github.com/{1}/pull/{0}''>PR #{0}</a> by <b>{2}</b>: <i>{3}</i>', github.event.number, github.repository, github.actor, github.event.title) }}
+        message: ${{ format('New deploy <a href=''https://github.com/{1}/pull/{0}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.repository, github.actor, github.event.title) }}
         format: html
