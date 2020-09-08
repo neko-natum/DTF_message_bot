@@ -29,5 +29,5 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: format('**{0}** just deployed [new changes]({1})', github.actor, github.event.compare)
-          format: markdown
+          message: format('<b>{0}</b> just deployed <a href="{1}">new changes</a>', github.actor, github.event.compare)
+          format: html
