@@ -13,8 +13,6 @@ jobs:
   send-notification:
     runs-on: ubuntu-latest
     steps:
-    - name: context dump
-      run: echo $GITHUB_CONTEXT
     - name: Send master push notification
       if: github.ref == 'refs/heads/master' && github.event_name == 'push'
       uses: appleboy/telegram-action@v0.0.8
@@ -29,7 +27,7 @@ jobs:
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: ${{ format('New <a href=''{1}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.event.pull_request.url, github.actor, github.event.pull_request.title) }}
+        message: ${{ format('New <a href=''{1}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.event.pull_request.html_url, github.actor, github.event.pull_request.title) }}
         format: html
     - name: Send prod PR notification
       if: github.event.pull_request.base.ref == 'prod' && github.event_name == 'pull_request' && github.event.action == 'opened'
@@ -37,5 +35,5 @@ jobs:
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: ${{ format('New deploy <a href=''{1}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.event.pull_request.url, github.actor, github.event.pull_request.title) }}
+        message: ${{ format('New deploy <a href=''{1}''>PR-{0}</a> by <b>{2}</b> - <i>{3}</i>', github.event.number, github.event.pull_request.html_url, github.actor, github.event.pull_request.title) }}
         format: html
