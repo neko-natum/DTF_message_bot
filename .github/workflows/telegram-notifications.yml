@@ -19,7 +19,7 @@ jobs:
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        message: ${{ format('<b>{0}</b> pushed to <b>{1}</b>\n<i>{2}</i>', github.actor, github.ref, join(github.event.commits.*.message, '\n')) }}
+        message: ${{ format('<b>{0}</b> pushed to <b>{1}</b>\n<i>{2}</i>', github.actor, github.ref, join(github.event.commits.*.message, \n)) }}
         format: html
     - name: Send new PR notification
       if: github.base_ref == 'refs/heads/master' && github.event_name == 'pull_request' && github.event.action == 'opened'
