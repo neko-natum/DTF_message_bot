@@ -45,7 +45,7 @@ namespace DTF_message_bot
             ID = options.SelfID;
             possessionID = options.PossessionID;
             clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
-            if (possessionID != null)
+            if (possessionID != "")
             {
                 possessionHash = Possession().ConfigureAwait(false).GetAwaiter().GetResult();
                 if (possessionHash != null)
