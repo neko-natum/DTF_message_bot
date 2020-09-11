@@ -17,6 +17,7 @@ namespace DTF_message_bot
      */
     internal class OsnovaClient
     {
+        private string site;
         private readonly HttpClient clientApi;
         private readonly HttpClient clientRaw;
         private SocketIO clientSocket;
@@ -35,6 +36,7 @@ namespace DTF_message_bot
         public OsnovaClient(IOptions<OsnovaOptions> optionsAccessor)
         {
             var options = optionsAccessor.Value;
+            site = options.Host;
             socketTasks = new ConcurrentQueue<User>();
             clientApi = new HttpClient();
             clientRaw = new HttpClient();
@@ -44,7 +46,7 @@ namespace DTF_message_bot
             clientRaw.DefaultRequestHeaders.Add("x-this-is-csrf", "THIS IS SPARTA!");
             ID = options.SelfID;
             possessionID = options.PossessionID;
-            clientApi.BaseAddress = new Uri("https://api." + options.Host + ".ru/" + options.Version + "/");
+            clientApi.BaseAddress = new Uri("https://api." + site + ".ru/" + options.Version + "/");
             if (possessionID != "")
             {
                 possessionHash = Possession().ConfigureAwait(false).GetAwaiter().GetResult();
@@ -62,7 +64,7 @@ namespace DTF_message_bot
 
         public async Task StartAsync() //слушатель сокетов
         {
-            clientSocket = new SocketIO("wss://ws-sio.dtf.ru/?EIO=3&transport=websocket");
+            clientSocket = new SocketIO("wss://ws-sio."+site+".ru/?EIO=3&transport=websocket");
             clientSocket.OnConnected += _socketIoClient_OnConnected;
             clientSocket.OnDisconnected += (_, e) => isConnected = false;
             clientSocket.OnError += (_, e) => isError = true;
@@ -163,7 +165,7 @@ namespace DTF_message_bot
 
         private async Task UpdateMHash() //потрясающая работа с сокетами мессенджера
         {
-            var hashQuery = JsonConvert.DeserializeObject<dynamic>(await RawGET(clientRaw, "https://dtf.ru/u/" + ID + "/stats?mode=ajax"))["module.auth"];
+            var hashQuery = JsonConvert.DeserializeObject<dynamic>(await RawGET(clientRaw, "https://" + site + ".ru/u/" + ID + "/stats?mode=ajax"))["module.auth"];
             mHash = hashQuery.m_hash;
             mHashLifetime = hashQuery.m_hash_expiration_time;
         }
