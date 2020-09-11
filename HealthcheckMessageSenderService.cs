@@ -1,7 +1,11 @@
+using DnsClient.Internal;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +22,8 @@ namespace DTF_message_bot
         public HealthcheckMessageSenderService(
             IOptions<HealthchecksOptions> optionsAccessor,
             IOptions<OsnovaOptions> osnovaOptionsAccessor,
-            IHostApplicationLifetime host) : base(host)
+            IHostApplicationLifetime host,
+            ILogger<ContinuousHostedService> baseLogger) : base(host, baseLogger)
         {
             var osnovaOptions = osnovaOptionsAccessor?.Value ?? throw new ArgumentNullException(nameof(osnovaOptionsAccessor));
             var hcOptions = optionsAccessor?.Value ?? throw new ArgumentNullException(nameof(optionsAccessor));
@@ -46,16 +51,23 @@ namespace DTF_message_bot
             }
         }
 
-        protected override Task<bool> OnBeforeStartAsync() =>
-            // sender will not start if there is no healthcheck configured
-            Task.FromResult(_hcEnabled);
+        protected override Task<bool> OnBeforeStartAsync() => Task.FromResult(_hcEnabled);
 
         protected override async Task RunServiceAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromMinutes(_hcIntervalMinutes), cancellationToken);
-                using var response = await _httpClient.PostAsync("m/send", _requestContent);
+                await Policy
+                    .Handle<Exception>()
+                    .WaitAndRetryAsync(
+                        new[] { 1, 2, 4 }
+                        .Cast<double>()
+                        .Select(TimeSpan.FromSeconds))
+                    .ExecuteAsync(async () =>
+                    {
+                        using var response = await _httpClient.PostAsync("m/send", _requestContent);
+                    });
             }
         }
 

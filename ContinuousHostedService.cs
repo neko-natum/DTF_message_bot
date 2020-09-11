@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using DnsClient.Internal;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,11 +11,13 @@ namespace DTF_message_bot
     {
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly IHostApplicationLifetime _host;
+        private readonly ILogger<ContinuousHostedService> _logger;
         private Task _serviceTask;
 
-        public ContinuousHostedService(IHostApplicationLifetime host)
+        public ContinuousHostedService(IHostApplicationLifetime host, ILogger<ContinuousHostedService> logger)
         {
             _host = host;
+            _logger = logger;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -27,8 +32,13 @@ namespace DTF_message_bot
                 {
                     await RunServiceAsync(_cts.Token);
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error occured during the execution of the continuous service");
+                }
                 finally
                 {
+                    _logger.LogInformation($"Continuous service {GetType().Name} crashed or finished, stopping the application");
                     _host.StopApplication();
                 }
             });
