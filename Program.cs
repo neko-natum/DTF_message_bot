@@ -57,7 +57,8 @@ namespace DTF_message_bot
             IOptions<MongoOptions> mongoOptionsAccessor,
             IOptions<HealthchecksOptions> hcOptionsAccessor,
             ILogger<DtfMessageBotService> logger,
-            IHostApplicationLifetime host) : base(host)
+            IHostApplicationLifetime host,
+            ILogger<ContinuousHostedService> baseLogger) : base(host, baseLogger)
         {
             _osnova = osnova;
             _hcOptions = hcOptionsAccessor.Value;

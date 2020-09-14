@@ -235,11 +235,11 @@ namespace DTF_message_bot
                             "Посмотреть все доступные на данный момент команды можно отправив /help";
                     }
 
-                    if (lastAction == UserActions.Start || lastAction == UserActions.TaskCompleted)
+                    /*if (lastAction == UserActions.Start || lastAction == UserActions.TaskCompleted)
                     {
                         answer += "Для работы необходимо ввести одну из команд бота.\n" +
                             "Посмотреть все доступные на данный момент команды можно отправив /help ";
-                    }
+                    }*/
 
                     lastAction = UserActions.Start;
                     break;
