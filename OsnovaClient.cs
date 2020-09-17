@@ -106,6 +106,13 @@ namespace DTF_message_bot
             }
         }
 
+        public async Task RestartSocket()
+        {
+            await StopAsync();
+            await UpdateMHash();
+            await StartAsync();
+        }
+
         private static async Task<string> RawGET(HttpClient client, string query) //Отправка GET-запроса с полученим чистого json
         {
             try
