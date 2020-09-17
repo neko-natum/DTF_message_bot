@@ -237,7 +237,6 @@ namespace DTF_message_bot
                                 if (answer != "")
                                 {
                                     await _osnova.AnswerUser(chan.id, answer);
-                                    _logger.LogInformation("Sockets should be restarted right now");
                                 }
                             }
                         }
@@ -279,6 +278,7 @@ namespace DTF_message_bot
                 }
                 if(_osnova.mHashLifetime < (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds)
                 {
+                    _logger.LogInformation("Sockets should be restarted right now");
                     _osnova.isConnected = false; //пусть будет на всякий
                     await _osnova.RestartSocket();
                     firstRun = true; //пусть будет на всякий
