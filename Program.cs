@@ -237,6 +237,7 @@ namespace DTF_message_bot
                                 if (answer != "")
                                 {
                                     await _osnova.AnswerUser(chan.id, answer);
+                                    _logger.LogInformation("Sockets should be restarted right now");
                                 }
                             }
                         }
@@ -276,7 +277,14 @@ namespace DTF_message_bot
                         _logger.LogError("Exception during remove of inactive.\n{0}", e.Message.ToString());
                     }
                 }
-                
+                if(_osnova.mHashLifetime < (double)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds)
+                {
+                    _osnova.isConnected = false; //пусть будет на всякий
+                    await _osnova.RestartSocket();
+                    firstRun = true; //пусть будет на всякий
+                }
+
+
             }
             while (!cancellationToken.IsCancellationRequested && _osnova.LastStatus >= 0);
 
