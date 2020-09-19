@@ -237,6 +237,6 @@ namespace DTF_message_bot
         }
 
         public async Task<MessageData> RequestChannelsData() //Запрашивает информацию о входящих
-=> JsonConvert.DeserializeObject<MessageData>(await RawGET(clientApi, "m/channels"));
+            => JsonConvert.DeserializeObject<MessageData>(await RawGET(clientApi, "m/channels"));
     }
 }

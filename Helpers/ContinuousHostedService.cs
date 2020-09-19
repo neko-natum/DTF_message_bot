@@ -24,6 +24,7 @@ namespace DTF_message_bot
         {
             if (!await OnBeforeStartAsync())
             {
+                _logger.LogWarning($"Continuous service {GetType().Name} is disabled and will not start");
                 return;
             }
             _serviceTask = Task.Run(async () =>
@@ -34,7 +35,7 @@ namespace DTF_message_bot
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error occured during the execution of the continuous service");
+                    _logger.LogError(ex, $"Error occured during the execution of the continuous service {GetType().Name}");
                 }
                 finally
                 {
